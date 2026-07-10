@@ -4,8 +4,16 @@
 Dependency-free: if `jsonschema` is installed it runs full-schema validation;
 otherwise (and always, as a belt-and-suspenders pass) it runs targeted
 structural assertions on the invariants the renderer relies on.
-Exit 0 = contract holds. Exit 1 = mismatch.
+
+Beyond the happy path, this also exercises the contract's *rejection* power:
+a set of known-bad mutations of the mock must each be refused, so a regression
+that silently weakens the contract is caught. Structural rejection always runs;
+jsonschema rejection runs too when the library is installed.
+
+Exit 0 = contract holds (good mock accepted, bad mocks rejected).
+Exit 1 = mismatch.
 """
+import copy
 import json
 import os
 import re
@@ -21,25 +29,16 @@ STRUCT_STATUS = {"idle", "working", "upgrading", "locked"}
 GEAR_SLOTS = {"head", "chest", "hands", "legs", "feet", "main_hand", "off_hand", "trinket"}
 
 
+class ContractError(Exception):
+    """Raised when a game-state violates the structural contract."""
+
+
 def fail(msg):
-    print("FAIL:", msg)
-    sys.exit(1)
+    raise ContractError(msg)
 
 
-def main():
-    with open(SCHEMA) as f:
-        schema = json.load(f)
-    with open(MOCK) as f:
-        mock = json.load(f)
-    print("ok: schema and mock both parse as JSON")
-
-    try:
-        import jsonschema
-        jsonschema.validate(mock, schema)
-        print("ok: jsonschema full-schema validation passed")
-    except ImportError:
-        print("note: jsonschema not installed - running structural checks only")
-
+def check_structural(mock):
+    """Assert the invariants the renderer relies on. Raises ContractError on any violation."""
     for k in ("schema_version", "contract", "generated_at", "character", "stats", "gear", "skills", "structures"):
         if k not in mock:
             fail("missing top-level key: " + k)
@@ -88,10 +87,111 @@ def main():
         if st["status"] not in STRUCT_STATUS:
             fail("structure " + st["key"] + " bad status: " + repr(st["status"]))
 
+
+# Known-bad mutations the contract MUST reject. Each takes a deep copy of the
+# good mock and corrupts one invariant. name -> mutator.
+def _drop_top_key(m):
+    del m["structures"]
+
+
+def _wrong_contract(m):
+    m["contract"] = "games-web.something-else"
+
+
+def _bad_semver(m):
+    m["schema_version"] = "1.0"
+
+
+def _level_zero(m):
+    m["character"]["level"] = 0
+
+
+def _missing_gear_slot(m):
+    del m["gear"]["trinket"]
+
+
+def _bad_rarity(m):
+    m["gear"]["head"]["rarity"] = "mythic"
+
+
+def _empty_stats(m):
+    m["stats"] = []
+
+
+def _xp_over_max(m):
+    m["skills"][0]["xp"] = m["skills"][0]["xp_max"] + 1
+
+
+def _bad_struct_status(m):
+    m["structures"][0]["status"] = "exploding"
+
+
+BAD_MUTATIONS = [
+    ("missing top-level key (structures)", _drop_top_key),
+    ("wrong contract id", _wrong_contract),
+    ("non-semver schema_version", _bad_semver),
+    ("character.level below minimum", _level_zero),
+    ("missing gear slot", _missing_gear_slot),
+    ("invalid gear rarity", _bad_rarity),
+    ("empty stats array", _empty_stats),
+    ("skill xp exceeds xp_max", _xp_over_max),
+    ("invalid structure status", _bad_struct_status),
+]
+
+
+def main():
+    with open(SCHEMA) as f:
+        schema = json.load(f)
+    with open(MOCK) as f:
+        mock = json.load(f)
+    print("ok: schema and mock both parse as JSON")
+
+    have_jsonschema = False
+    try:
+        import jsonschema
+        have_jsonschema = True
+    except ImportError:
+        print("note: jsonschema not installed - running structural checks only")
+
+    # --- Positive path: the committed mock MUST be accepted. ---
+    if have_jsonschema:
+        jsonschema.validate(mock, schema)
+        print("ok: jsonschema full-schema validation passed")
+    check_structural(mock)
     print("ok: %d stats, 8 gear slots, %d skills, %d structures - all invariants hold" % (
         len(mock["stats"]), len(mock["skills"]), len(mock["structures"])))
-    print("PASS: mock game-state satisfies games-web.character-sheet v" + mock["schema_version"])
+
+    # --- Negative path: each known-bad mutation MUST be rejected. ---
+    for label, mutate in BAD_MUTATIONS:
+        bad = copy.deepcopy(mock)
+        mutate(bad)
+
+        # Structural checks must reject it (dependency-free, always runs).
+        try:
+            check_structural(bad)
+        except ContractError:
+            pass
+        else:
+            fail("negative case NOT rejected by structural checks: " + label)
+
+        # jsonschema, when present, must also reject it.
+        if have_jsonschema:
+            try:
+                jsonschema.validate(bad, schema)
+            except jsonschema.ValidationError:
+                pass
+            else:
+                fail("negative case NOT rejected by jsonschema: " + label)
+
+    print("ok: %d known-bad mutations all rejected%s" % (
+        len(BAD_MUTATIONS), " (structural + jsonschema)" if have_jsonschema else " (structural)"))
+    print("PASS: mock game-state satisfies games-web.character-sheet v" + mock["schema_version"]
+          + "; contract rejects malformed states")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except ContractError as e:
+        print("FAIL:", e)
+        sys.exit(1)
