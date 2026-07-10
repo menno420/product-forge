@@ -36,3 +36,5 @@ The planted doc set (this router reaches every live doc — keep it that way):
 ```
 python3 bootstrap.py check --strict (repo gate) + each touched product's own test command per its README
 ```
+
+Retro self-review set (answered at retro time, by ID): [retro/questions.md](retro/questions.md)
