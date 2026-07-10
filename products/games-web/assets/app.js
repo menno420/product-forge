@@ -1,4 +1,4 @@
-const DATA_URL = "data/mock/mining-character.json";
+const DEFAULT_DATA_URL = "data/mock/mining-character.json";
 const SUPPORTED_MAJOR = 1;
 
 function esc(s) {
@@ -127,11 +127,12 @@ function render(app, state) {
     + structuresPanel(state.structures);
 }
 
-async function main() {
+async function loadAndRender(url) {
   const app = document.getElementById("app");
+  app.innerHTML = '<p class="loading">Loading character sheet&hellip;</p>';
   let state;
   try {
-    const res = await fetch(DATA_URL, { cache: "no-store" });
+    const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status);
     state = await res.json();
   } catch (err) {
@@ -147,6 +148,15 @@ async function main() {
     return;
   }
   render(app, state);
+}
+
+function main() {
+  const select = document.getElementById("char-select");
+  const initial = (select && select.value) || DEFAULT_DATA_URL;
+  if (select) {
+    select.addEventListener("change", () => loadAndRender(select.value));
+  }
+  loadAndRender(initial);
 }
 
 document.addEventListener("DOMContentLoaded", main);

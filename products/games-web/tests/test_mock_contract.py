@@ -23,6 +23,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 SCHEMA = os.path.join(ROOT, "data", "schema", "game-state.schema.json")
 MOCK = os.path.join(ROOT, "data", "mock", "mining-character.json")
+# Every committed fixture must satisfy the happy path. The first (MOCK) is also
+# the base for the known-bad mutations below.
+MOCKS = [
+    os.path.join(ROOT, "data", "mock", "mining-character.json"),
+    os.path.join(ROOT, "data", "mock", "recruit-character.json"),
+]
 
 RARITIES = {"common", "uncommon", "rare", "epic", "legendary"}
 STRUCT_STATUS = {"idle", "working", "upgrading", "locked"}
@@ -142,9 +148,7 @@ BAD_MUTATIONS = [
 def main():
     with open(SCHEMA) as f:
         schema = json.load(f)
-    with open(MOCK) as f:
-        mock = json.load(f)
-    print("ok: schema and mock both parse as JSON")
+    print("ok: schema parses as JSON")
 
     have_jsonschema = False
     try:
@@ -153,13 +157,21 @@ def main():
     except ImportError:
         print("note: jsonschema not installed - running structural checks only")
 
-    # --- Positive path: the committed mock MUST be accepted. ---
-    if have_jsonschema:
-        jsonschema.validate(mock, schema)
-        print("ok: jsonschema full-schema validation passed")
-    check_structural(mock)
-    print("ok: %d stats, 8 gear slots, %d skills, %d structures - all invariants hold" % (
-        len(mock["stats"]), len(mock["skills"]), len(mock["structures"])))
+    # --- Positive path: EVERY committed fixture MUST be accepted. ---
+    for path in MOCKS:
+        with open(path) as f:
+            fixture = json.load(f)
+        name = os.path.basename(path)
+        if have_jsonschema:
+            jsonschema.validate(fixture, schema)
+            print("ok: %s - jsonschema full-schema validation passed" % name)
+        check_structural(fixture)
+        print("ok: %s - %d stats, 8 gear slots, %d skills, %d structures - all invariants hold" % (
+            name, len(fixture["stats"]), len(fixture["skills"]), len(fixture["structures"])))
+
+    # The known-bad mutations below corrupt one invariant of the first fixture.
+    with open(MOCK) as f:
+        mock = json.load(f)
 
     # --- Negative path: each known-bad mutation MUST be rejected. ---
     for label, mutate in BAD_MUTATIONS:
