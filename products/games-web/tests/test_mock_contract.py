@@ -132,16 +132,22 @@ def _bad_struct_status(m):
     m["structures"][0]["status"] = "exploding"
 
 
+# Each entry: (label, mutator, jsonschema_detectable).
+# jsonschema_detectable is True when draft-07 validation can catch the mutation.
+# It is False ONLY for `_xp_over_max`: the xp <= xp_max invariant is a cross-field
+# comparison that draft-07 JSON Schema cannot express, so only the structural path
+# rejects it. Every other mutation (including empty stats, now that the schema
+# carries `minItems: 1`) is detectable by jsonschema.
 BAD_MUTATIONS = [
-    ("missing top-level key (structures)", _drop_top_key),
-    ("wrong contract id", _wrong_contract),
-    ("non-semver schema_version", _bad_semver),
-    ("character.level below minimum", _level_zero),
-    ("missing gear slot", _missing_gear_slot),
-    ("invalid gear rarity", _bad_rarity),
-    ("empty stats array", _empty_stats),
-    ("skill xp exceeds xp_max", _xp_over_max),
-    ("invalid structure status", _bad_struct_status),
+    ("missing top-level key (structures)", _drop_top_key, True),
+    ("wrong contract id", _wrong_contract, True),
+    ("non-semver schema_version", _bad_semver, True),
+    ("character.level below minimum", _level_zero, True),
+    ("missing gear slot", _missing_gear_slot, True),
+    ("invalid gear rarity", _bad_rarity, True),
+    ("empty stats array", _empty_stats, True),
+    ("skill xp exceeds xp_max", _xp_over_max, False),
+    ("invalid structure status", _bad_struct_status, True),
 ]
 
 
@@ -174,7 +180,7 @@ def main():
         mock = json.load(f)
 
     # --- Negative path: each known-bad mutation MUST be rejected. ---
-    for label, mutate in BAD_MUTATIONS:
+    for label, mutate, jsonschema_detectable in BAD_MUTATIONS:
         bad = copy.deepcopy(mock)
         mutate(bad)
 
@@ -186,8 +192,10 @@ def main():
         else:
             fail("negative case NOT rejected by structural checks: " + label)
 
-        # jsonschema, when present, must also reject it.
-        if have_jsonschema:
+        # jsonschema, when present, must reject the mutations draft-07 can express.
+        # Cross-field invariants (xp <= xp_max) are not expressible in draft-07, so
+        # such mutations are structural-only and intentionally skipped here.
+        if have_jsonschema and jsonschema_detectable:
             try:
                 jsonschema.validate(bad, schema)
             except jsonschema.ValidationError:

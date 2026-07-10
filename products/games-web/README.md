@@ -51,6 +51,12 @@ accepted, bad mocks rejected).
 `schema_version`) mirrors superbot's versioned dashboard-data-contract pattern
 (superbot PR #1920). The renderer refuses a contract/major it does not understand.
 
+Now **v1.0.1**: validation was tightened to encode the always-enforced structural
+rules — `stats` requires ≥1 entry (`minItems: 1`). The effective contract is unchanged
+from 1.0.0 (patch bump); only the schema's expressiveness caught up to the structural
+test. (The cross-field `xp <= xp_max` invariant stays structural-only — draft-07 cannot
+express it.)
+
 Layout:
 - `character` — name, class, level, title, portrait (placeholder)
 - `stats[]` — ordered stat lines

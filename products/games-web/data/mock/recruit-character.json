@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.0.1",
   "contract": "games-web.character-sheet",
   "generated_at": "2026-07-10T18:41:00Z",
   "character": {
