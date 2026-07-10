@@ -1,15 +1,24 @@
 # games-web — browser character sheet (phase 1)
 
 Turn superbot's games into a web-based visual experience: a Shakes & Fidget-style
-comic browser-RPG presentation. **Phase 1** renders the **MINING** character sheet —
-gear paper-doll, stats, skills, structures — from a **committed mock game-state**.
+comic browser-RPG presentation. **Phase 1** renders **MINING** character sheets —
+gear paper-doll, stats, skills, structures — from **committed mock game-states**, with
+a topbar dropdown to switch between characters.
 
 ## State
 
-**alpha · runnable.** Renders the committed mock (`data/mock/mining-character.json`)
-in the browser with dependency-free inline SVG art (gear, skills, structures, a
-paper-doll miner figure), rarity-framed chips, xp bars, and hover tooltips showing
-item stats. Responsive down to narrow widths. No real game data yet.
+**alpha · runnable.** Renders two committed mock characters in the browser with
+dependency-free inline SVG art (gear, skills, structures, a paper-doll miner figure),
+rarity-framed chips, xp bars, and hover tooltips showing item stats. A **character
+switcher** in the topbar flips between them without a reload:
+
+- `data/mock/mining-character.json` — **Durzo Coalfist**, a level-27 Foreman with all
+  eight gear slots filled (default view).
+- `data/mock/recruit-character.json` — **Pip Gravelton**, a fresh level-1 recruit with
+  mostly empty gear slots and minimal stats, exercising the renderer's empty-slot and
+  missing-optional branches.
+
+Responsive down to narrow widths. No real game data yet.
 
 ## Run
 
@@ -27,9 +36,10 @@ Open http://localhost:8000/ . Must be served over HTTP — opening `index.html` 
 python3 tests/test_mock_contract.py
 ```
 
-Validates the committed mock against the versioned contract
-(`data/schema/game-state.schema.json`). Uses `jsonschema` for full-schema validation
-when installed; always runs dependency-free structural checks. Beyond the happy path it
+Validates both committed mocks (`mining-character.json` and `recruit-character.json`)
+against the versioned contract (`data/schema/game-state.schema.json`). Uses `jsonschema`
+for full-schema validation when installed; always runs dependency-free structural checks.
+Beyond the happy path it
 also asserts the contract's *rejection* power: nine known-bad mutations of the mock
 (wrong contract id, non-semver version, missing gear slot, invalid rarity, `xp > xp_max`,
 bad structure status, and more) must each be refused. Exit 0 = contract holds (good mock
@@ -62,7 +72,8 @@ products/games-web/
 ├── index.html              # entry page
 ├── assets/{app.js,styles.css}
 ├── data/schema/game-state.schema.json   # versioned contract
-├── data/mock/mining-character.json      # committed mock game-state
-├── tests/test_mock_contract.py          # contract validation
+├── data/mock/mining-character.json      # committed mock — Durzo (lvl 27, all slots filled)
+├── data/mock/recruit-character.json     # committed mock — Pip (lvl 1, empty slots / min values)
+├── tests/test_mock_contract.py          # contract validation (both fixtures)
 └── run.sh
 ```
