@@ -63,3 +63,4 @@ remote auto-mode safety classifier (merge-without-review guard; the standing gra
 cross-session and treated as non-authoritative by the classifier). PR is green+READY
 awaiting an owner merge click / owner approval of the merge permission prompt. Tests
 green with and without jsonschema (EXIT=0); bootstrap check --strict EXIT=0.
+<!-- wip: Q-0265 slice — post-#13 status refresh + Pages run verdict + products index; in progress -->
