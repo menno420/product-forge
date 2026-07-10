@@ -1,0 +1,104 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://menno420.github.io/product-forge/games-web/game-state.schema.json",
+  "title": "games-web game-state contract",
+  "description": "Versioned mock game-state contract for the games-web character sheet. Mirrors superbot's dashboard-data-contract pattern (superbot PR #1920): a top-level schema_version plus a stable, additive shape the renderer reads. Real-data integration (a superbot-lane read-only API) is OUT of scope for phase 1.",
+  "type": "object",
+  "required": ["schema_version", "contract", "generated_at", "character", "stats", "gear", "skills", "structures"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "contract": { "type": "string", "const": "games-web.character-sheet" },
+    "generated_at": { "type": "string" },
+    "character": {
+      "type": "object",
+      "required": ["name", "class", "level", "title"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "class": { "type": "string" },
+        "level": { "type": "integer", "minimum": 1 },
+        "title": { "type": "string" },
+        "portrait": { "type": "string" }
+      }
+    },
+    "stats": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "label", "value"],
+        "additionalProperties": false,
+        "properties": {
+          "key": { "type": "string" },
+          "label": { "type": "string" },
+          "value": { "type": ["number", "string"] },
+          "hint": { "type": "string" }
+        }
+      }
+    },
+    "gear": {
+      "type": "object",
+      "required": ["head", "chest", "hands", "legs", "feet", "main_hand", "off_hand", "trinket"],
+      "additionalProperties": false,
+      "properties": {
+        "head": { "$ref": "#/$defs/gearSlot" },
+        "chest": { "$ref": "#/$defs/gearSlot" },
+        "hands": { "$ref": "#/$defs/gearSlot" },
+        "legs": { "$ref": "#/$defs/gearSlot" },
+        "feet": { "$ref": "#/$defs/gearSlot" },
+        "main_hand": { "$ref": "#/$defs/gearSlot" },
+        "off_hand": { "$ref": "#/$defs/gearSlot" },
+        "trinket": { "$ref": "#/$defs/gearSlot" }
+      }
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "label", "level", "xp", "xp_max"],
+        "additionalProperties": false,
+        "properties": {
+          "key": { "type": "string" },
+          "label": { "type": "string" },
+          "level": { "type": "integer", "minimum": 0 },
+          "xp": { "type": "number", "minimum": 0 },
+          "xp_max": { "type": "number", "minimum": 1 },
+          "icon": { "type": "string" }
+        }
+      }
+    },
+    "structures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "label", "tier", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "key": { "type": "string" },
+          "label": { "type": "string" },
+          "tier": { "type": "integer", "minimum": 0 },
+          "status": { "type": "string", "enum": ["idle", "working", "upgrading", "locked"] },
+          "icon": { "type": "string" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "gearSlot": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["name", "rarity"],
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string" },
+            "rarity": { "type": "string", "enum": ["common", "uncommon", "rare", "epic", "legendary"] },
+            "icon": { "type": "string" },
+            "power": { "type": "number" }
+          }
+        }
+      ]
+    }
+  }
+}

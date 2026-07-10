@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0.0",
+  "contract": "games-web.character-sheet",
+  "generated_at": "2026-07-10T18:41:00Z",
+  "character": {
+    "name": "Durzo Coalfist",
+    "class": "Miner",
+    "level": 27,
+    "title": "Deepvein Foreman",
+    "portrait": "⛏️"
+  },
+  "stats": [
+    { "key": "strength", "label": "Strength", "value": 148, "hint": "Swing damage vs rock" },
+    { "key": "endurance", "label": "Endurance", "value": 132, "hint": "Shift length before fatigue" },
+    { "key": "haste", "label": "Haste", "value": 61, "hint": "Swings per minute" },
+    { "key": "luck", "label": "Luck", "value": 44, "hint": "Rare-ore proc chance" },
+    { "key": "yield", "label": "Ore Yield", "value": "x2.3", "hint": "Multiplier on mined ore" },
+    { "key": "armor", "label": "Armor", "value": 96, "hint": "Cave-in mitigation" }
+  ],
+  "gear": {
+    "head": { "name": "Carbide Helm-Lamp", "rarity": "rare", "icon": "⛑️", "power": 38 },
+    "chest": { "name": "Reinforced Pit Jacket", "rarity": "uncommon", "icon": "🦺", "power": 44 },
+    "hands": { "name": "Gripstone Gauntlets", "rarity": "uncommon", "icon": "🧤", "power": 22 },
+    "legs": { "name": "Kneepad Trousers", "rarity": "common", "icon": "👖", "power": 15 },
+    "feet": { "name": "Steel-Toe Deepboots", "rarity": "rare", "icon": "🥾", "power": 27 },
+    "main_hand": { "name": "Adamant Pickaxe +3", "rarity": "epic", "icon": "⛏️", "power": 91 },
+    "off_hand": { "name": "Everburn Lantern", "rarity": "rare", "icon": "🏲", "power": 19 },
+    "trinket": { "name": "Vein-Seeker Charm", "rarity": "legendary", "icon": "🔮", "power": 66 }
+  },
+  "skills": [
+    { "key": "prospecting", "label": "Prospecting", "level": 31, "xp": 4200, "xp_max": 6000, "icon": "🧭" },
+    { "key": "tunneling", "label": "Tunneling", "level": 27, "xp": 5100, "xp_max": 5500, "icon": "🕳️" },
+    { "key": "smelting", "label": "Smelting", "level": 22, "xp": 1800, "xp_max": 4000, "icon": "🔥" },
+    { "key": "gemcutting", "label": "Gem-Cutting", "level": 18, "xp": 900, "xp_max": 3200, "icon": "💎" }
+  ],
+  "structures": [
+    { "key": "shaft", "label": "Main Shaft", "tier": 4, "status": "working", "icon": "🕳️" },
+    { "key": "smelter", "label": "Ore Smelter", "tier": 3, "status": "upgrading", "icon": "🏭" },
+    { "key": "vault", "label": "Storage Vault", "tier": 2, "status": "idle", "icon": "🗄️" },
+    { "key": "cartline", "label": "Cart Line", "tier": 1, "status": "locked", "icon": "🚃" }
+  ]
+}
