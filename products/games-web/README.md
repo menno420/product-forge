@@ -20,6 +20,17 @@ switcher** in the topbar flips between them without a reload:
 
 Responsive down to narrow widths. No real game data yet.
 
+## Live preview
+
+Once GitHub Pages is enabled for this repo, the site auto-deploys on every push to
+`main` that touches `products/games-web/**` (via `.github/workflows/deploy-pages.yml`).
+
+- URL: https://menno420.github.io/product-forge/
+
+**State: pending an owner settings click.** Pages must be enabled first
+(Settings → Pages → Source: "GitHub Actions") before the first deploy publishes.
+Until then, run locally with `./run.sh` (see below).
+
 ## Run
 
 ```bash
