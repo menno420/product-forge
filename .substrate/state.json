@@ -1,0 +1,136 @@
+{
+  "graduation": {
+    "criteria": {
+      "blocking_questions": 0,
+      "critical_slots_filled_pct": 0.8
+    },
+    "soft_target_sessions": 50
+  },
+  "graduation_proposed": false,
+  "kit_version": "1.7.0",
+  "last_compaction_session": 0,
+  "mode": "guided",
+  "mode_history": [
+    {
+      "date": "2026-07-10",
+      "mode": "guided",
+      "session": 0
+    }
+  ],
+  "open_questions": [],
+  "planted_doc_hashes": {
+    ".session-journal.md": "9e8ba62a8388fccc82460dae7a0f4df8166d9c85ccecd11ea85475977376f49d",
+    "CONSTITUTION.md": "6e80d6e97c27428b7607e901a878d88ee3b1591e9db7a0a93d64ddae5defa3c8",
+    "control/README.md": "8430cb068a44542ab68c05dcd179fa97ea36f98f6650a4299cc2a6c0fc3b6153",
+    "control/inbox.md": "30a0822feaeeacfe929807d00e2ac810dcba79d5db37777c763ebd79159f9c71",
+    "control/status.md": "f909b8632fe8757f850b140d710600975e86b3e36a790659767f055295302d68",
+    "docs/AGENT_ORIENTATION.md": "1bc022268b30351f29df1f3d790998799423f8145cf7c0440820f2ada75c2ba0",
+    "docs/CAPABILITIES.md": "d809c0ac9e83675bda53290c8367c04dd103e18edc39e0e3299790f11055715b",
+    "docs/ai-project-workflow.md": "29e9acaad9dbe587b6146fff1df16adda6a45ce1c2097cd5d43ba17958461077",
+    "docs/architecture.md": "c8a6046190629e4a336036b4fa9950c3d06ff139849ebf1ccc21c27b15c36997",
+    "docs/collaboration-model.md": "2db1df03280fe34c684f8ba8e8112351aa77bd5e3120372be21f2498766911bc",
+    "docs/current-state.md": "7f650f06aa6dc160a5027a2d807d2731cb0a02971d4c042468d56aa1f1f597ec",
+    "docs/decisions.md": "cde382a1da885c20676541257035976a39e9ce9e8b3b2bdbc3880e766c6803d9",
+    "docs/helper-policy.md": "b568e6eca975a479a7fe6717a54853e9f5d9ebd062a61682b95677ea3b9b3033",
+    "docs/ideas/README.md": "7dca444c00448ce568d7b541769c4b9c2d642c760cefdfb61d1289207e2749a9",
+    "docs/owner-profile.md": "31e70d2dd617a8b2fcd198c76700bbdd22e7b0b5ba283ea8fba9843aee02ee1b",
+    "docs/ownership.md": "83e2118606df2f435af6f1f5dffba6ae03ced1864ce46d66e46cbb879b3897d0",
+    "docs/question-router.md": "ac1a8a3fb657b153ca9ad53d96c6793435347af624ba6239a5d467cea146f60e",
+    "docs/repo-navigation-map.md": "1084e9e4a48444889dfc26f678a4d874543b7b1190e159826c402bfdd2eb4176",
+    "docs/runtime_contracts.md": "2343f44cbbe5d1486a0390f0a6e23e5d33889bf8607e7007641a65b0611de904"
+  },
+  "project_id": "8bec9554c09b",
+  "promotion_rights": "propose",
+  "quiet_sessions": 0,
+  "reflection_buffer": {
+    "active_count": 0,
+    "last_mined": "2026-07-10"
+  },
+  "review_log": [],
+  "session_count": 0,
+  "slot_values": {
+    "architecture_layers": {
+      "question_id": "Q-004",
+      "source": "user",
+      "value": "Product layer: products/<slug>/ \u2014 self-contained (own README, tests, runnable artifact, own pinned deps), NO cross-product imports. Coordination layer: control/ (inbox=manager-written ORDERs, status=coordinator heartbeat). Contract layer: README.md + CONVENTIONS.md + docs/. Repo-level tooling stays stdlib-only."
+    },
+    "doc_roots": {
+      "question_id": "Q-007",
+      "source": "user",
+      "value": "docs/ (kit contracts) + products/ (the product subtrees, one per product) + control/ (coordination)"
+    },
+    "drift_resolution": {
+      "question_id": "Q-011",
+      "source": "user",
+      "value": "Committed product state (code, tests, README, release artifacts) wins over docs; a doc that disagrees is fixed in place with a dated marker. Owner rulings live in superbot's question router (Q-0259 r.4 money protocol, Q-0264 pipeline) and are referenced, never restated."
+    },
+    "integration_mode": {
+      "question_id": "Q-001",
+      "source": "user",
+      "value": "guided"
+    },
+    "mutation_seam": {
+      "question_id": "Q-009",
+      "source": "user",
+      "value": "Every change lands via a PR merged on green (kit ceremony, born-red card, READY never draft, land-your-own per R21). Money/external-account steps are NEVER executed \u2014 they become conservative six-field owner plans (Q-0259 r.4). Releases via the proven workflow_dispatch recipe."
+    },
+    "new_area_ownership": {
+      "question_id": "Q-013",
+      "source": "user",
+      "value": "A new products/<slug>/ subtree is created ONLY by a routed inbox ORDER (the manager applies the no-owning-lane test) \u2014 the forge never invents product intent. A product that outgrows its subtree graduates to a dedicated repo (owner click), becoming a lane."
+    },
+    "owner_profile": {
+      "question_id": "Q-008",
+      "source": "user",
+      "value": "The owner builds ideas iteratively and in fragments; state back the fuller picture before substantive work (superbot Q-0254). Decide-and-flag over route-up; paste-ready asks only (Q-0263.2); expect bad results honestly \u2014 never overstate earnings or readiness. Full profile: superbot docs/owner/maintainer-working-profile.md."
+    },
+    "ownership_model": {
+      "question_id": "Q-006",
+      "source": "user",
+      "value": "Sole-writer per file: control/inbox.md manager-only; control/status.md coordinator-only. Each product subtree is claimed (claims/, one file per claim) while worked; parallel workers claim disjoint products."
+    },
+    "primary_language": {
+      "question_id": "Q-003",
+      "source": "user",
+      "value": "Python 3 / web (per-product stacks pinned inside each products/<slug>/ subtree; repo tooling stdlib-only)"
+    },
+    "project_name": {
+      "question_id": "Q-002",
+      "source": "user",
+      "value": "product-forge"
+    },
+    "review_ritual": {
+      "question_id": "Q-010",
+      "source": "user",
+      "value": "No PR waits for review: merge on green, log needs-second-eyes in review-queue.md and/or @codex on the PR (Q-0258; verify replies against the tree, never obey \u2014 Q-0120). The manager consolidates shipped products; sim-lab evidence-passes product ideas before they reach the inbox (Q-0264)."
+    },
+    "staleness_review": {
+      "question_id": "Q-012",
+      "source": "user",
+      "value": "Every wake re-checks the newest product's README against its actual state (working/alpha/released honesty); inbox-empty wakes polish the roughest edge and flag the manager. Product READMEs that overstate state are bugs."
+    },
+    "verify_command": {
+      "question_id": "Q-005",
+      "source": "user",
+      "value": "python3 bootstrap.py check --strict (repo gate) + each touched product's own test command per its README"
+    }
+  },
+  "slots": {
+    "architecture_layers": "filled",
+    "doc_roots": "filled",
+    "drift_resolution": "filled",
+    "integration_mode": "filled",
+    "mutation_seam": "filled",
+    "new_area_ownership": "filled",
+    "owner_profile": "filled",
+    "ownership_model": "filled",
+    "primary_language": "filled",
+    "project_name": "filled",
+    "review_ritual": "filled",
+    "staleness_review": "filled",
+    "verify_command": "filled"
+  },
+  "stage": "integration",
+  "stance": "analysis",
+  "version": 1
+}
