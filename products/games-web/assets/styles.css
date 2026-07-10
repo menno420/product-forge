@@ -8,6 +8,7 @@
   --common:#9a9a9a; --uncommon:#4f9d3a; --rare:#2f6fb0; --epic:#8a3fb0; --legendary:#d98a1f;
 }
 *{box-sizing:border-box}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 body{
   margin:0;font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;color:var(--ink);
   background:var(--parch);
@@ -51,9 +52,11 @@ body{
   border-radius:7px;padding:.3rem .5rem;font-size:.82rem;cursor:default;
   transition:transform .08s ease,box-shadow .08s ease}
 .gear-chip:hover,.gear-chip:focus{transform:translate(-1px,-2px);
-  box-shadow:3px 4px 0 rgba(0,0,0,.28);outline:none}
+  box-shadow:3px 4px 0 rgba(0,0,0,.28)}
+.gear-chip:focus-visible{outline:3px solid var(--frame);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){.gear-chip{transition:none}.gear-chip:hover,.gear-chip:focus{transform:none}}
 .gear-chip .slot{grid-column:1 / -1;font-size:.62rem;text-transform:uppercase;
-  letter-spacing:.5px;opacity:.6}
+  letter-spacing:.5px;opacity:.72}
 .gear-chip .icon{width:1.7rem;height:1.7rem;display:grid;place-items:center;font-size:1.2rem}
 .gear-chip .icon svg{width:1.7rem;height:1.7rem;display:block}
 .gear-chip .name{font-weight:700}

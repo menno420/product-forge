@@ -20,6 +20,12 @@ switcher** in the topbar flips between them without a reload:
 
 Responsive down to narrow widths. No real game data yet.
 
+Accessibility: semantic landmarks, ARIA-labelled gear/skill/structure widgets (skill
+xp-bars expose `role="progressbar"` with value min/max), a keyboard-visible focus ring
+on gear chips, a polite live-region that announces character switches, and
+`prefers-reduced-motion` support; decorative SVG art is `aria-hidden`. Not yet audited
+with a full screen-reader pass.
+
 ## Live preview
 
 Once GitHub Pages is enabled for this repo, the site auto-deploys on every push to

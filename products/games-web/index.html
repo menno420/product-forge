@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>games-web · Character Sheet (phase 1 · mock data)</title>
   <link rel="stylesheet" href="assets/styles.css" />
+  <link rel="icon" href="data:," />
 </head>
 <body>
   <header class="topbar">
@@ -18,7 +19,8 @@
     </label>
     <span class="badge">phase 1 &middot; MOCK DATA</span>
   </header>
-  <main id="app" class="sheet"><p class="loading">Loading character sheet&hellip;</p></main>
+  <main id="app" class="sheet" aria-label="Character sheet" aria-live="polite" aria-busy="true"><p class="loading">Loading character sheet&hellip;</p></main>
+  <p id="load-status" class="sr-only" role="status" aria-live="polite"></p>
   <footer class="footnote">
     Placeholder art. Rendered from a committed mock game-state &mdash; real-data integration is out of scope for phase 1.
   </footer>
