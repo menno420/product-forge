@@ -7,7 +7,9 @@ gear paper-doll, stats, skills, structures — from a **committed mock game-stat
 ## State
 
 **alpha · runnable.** Renders the committed mock (`data/mock/mining-character.json`)
-in the browser. Placeholder art (emoji + rarity-framed chips). No real game data yet.
+in the browser with dependency-free inline SVG art (gear, skills, structures, a
+paper-doll miner figure), rarity-framed chips, xp bars, and hover tooltips showing
+item stats. Responsive down to narrow widths. No real game data yet.
 
 ## Run
 
