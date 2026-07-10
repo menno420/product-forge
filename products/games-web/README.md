@@ -27,7 +27,11 @@ python3 tests/test_mock_contract.py
 
 Validates the committed mock against the versioned contract
 (`data/schema/game-state.schema.json`). Uses `jsonschema` for full-schema validation
-when installed; always runs dependency-free structural checks. Exit 0 = contract holds.
+when installed; always runs dependency-free structural checks. Beyond the happy path it
+also asserts the contract's *rejection* power: nine known-bad mutations of the mock
+(wrong contract id, non-semver version, missing gear slot, invalid rarity, `xp > xp_max`,
+bad structure status, and more) must each be refused. Exit 0 = contract holds (good mock
+accepted, bad mocks rejected).
 
 ## Data contract
 
