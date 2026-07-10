@@ -1,68 +1,49 @@
-# Product Forge — Coordinator Heartbeat
+# product-forge · status
 
-updated: 2026-07-10T18:59:00Z
+updated: 2026-07-10T19:45:00Z
+lane: builder (ORDER 001 · games-web phase-1)
+health: green
 
-**Lane:** coordinator (boot verification)
-**Date:** 2026-07-10
-**HEAD verified:** `3179692` on `main`
-**Health:** green
+## This pass
+Built products/games-web/ phase-1 — the forge's first real product subtree. Prior PR #2
+had only routed ORDER 001 into the inbox; no product code existed. This pass shipped a
+runnable increment on the build ladder (scaffold -> working core -> tests -> README):
+- versioned mock contract `games-web.character-sheet` v1.0.0 (data/schema/game-state.schema.json),
+  mirroring superbot's dashboard-data-contract pattern (superbot PR #1920)
+- committed mock game-state: the MINING character sheet (data/mock/mining-character.json)
+- dependency-free static renderer (index.html + assets/) — Shakes & Fidget-style comic sheet:
+  gear paper-doll, stats, skills xp-bars, structures. Placeholder emoji art.
+- contract test (tests/test_mock_contract.py) -> PASS; `python3 bootstrap.py check --strict` -> exit 0
+- README with one-command run (`./run.sh` -> http://localhost:8000/) and honest state line (alpha, runnable)
+Shipped as PR #4 (READY): https://github.com/menno420/product-forge/pull/4
+Product commit 74ea7c0 atop heartbeat 6d1a3f2, off origin/main c67b1fc.
 
-## Boot verification
-Synced clean to `origin/main` HEAD `3179692` (non-destructive fast-forward; tree was clean). Seed artifacts verified at HEAD:
+## Ladder progress (ORDER 001)
+scaffold [x] · working core [x] (renders mock) · tests [x] · README [x] · release artifact [ ] (next wake)
 
-- `README.md` — role contract, no-owning-lane test, build ladder (scaffold→core→tests→README→release), money protocol (Q-0259 r.4) ✓
-- `CONVENTIONS.md` — written merge-authority grant (R21: this lane ALWAYS lands its own PRs) ✓
-- `.sessions/2026-07-10-seed.md` — seed handoff, status complete ✓
-- `control/inbox.md`, `control/status.md` ✓
-- `review-queue.md` — at repo **root** (by seed design; linked from CONVENTIONS.md + seed log), not under `control/` ✓
-- `PLATFORM-LIMITS.md` ✓
-- `docs/retro/questions.md` ✓
-- `claims/README.md` ✓
-- `products/README.md` ✓
+## Inbox
+ORDER 001 (build products/games-web/ phase-1) — acked, in progress.
+No other orders present; inbox is NOT empty.
+orders: acked=001 done=(pending PR #4 merge)
 
-Gate verdict — `python3 bootstrap.py check --strict` (verbatim):
+## OWNER-ACTION
+OA-001 — DONE (owner-side). Owner added required check `substrate-gate` to the main ruleset
+and enabled "Allow auto-merge".
+Functional verification on PR #4: `substrate-gate` is the SOLE check run on the PR and
+`mergeable_state=blocked` while it runs -> functionally confirms substrate-gate is Required/gating.
+(The ruleset REST API is not readable from the agent session — "GitHub access is not enabled for
+this session" — so Required is confirmed by merge-gating behaviour, not by reading the ruleset API.)
+Auto-merge arm outcome: NOT armed — GitHub declined (MERGE method, PR #4): "The pull request is already in clean status (all checks passed). Auto-merge only applies when checks are pending — you can merge directly." PR is already mergeable, so REST merge-on-green is the landing path (R21).
 
-```
-check: session log .sessions/2026-07-10-seed.md complete.
-check: all checks passed.
-```
+## Landing
+Path: auto-merge (owner-enabled) + REST merge-on-green as the proven fallback (R21).
+Merge pending substrate-gate conclusion on the PR head.
 
-exit=0 (green).
+## Routine
+armed — trigger trig_01XjviWNduYqF5jeRnRBMSFN "product-forge 2-hourly standing wake",
+cron `0 */2 * * *`, enabled. Next standing wake ~2026-07-10T20:02Z.
 
-## Walking-skeleton verdict
-Proven end-to-end: branch → PR → gate → merge.
-
-PR #1 (seed fix) merged: commit `c73e3f8`, merged_at `2026-07-10T18:28:09Z`, merged_by menno420. Its single required check-run is named **`substrate-gate`** (GitHub Actions check-run; no legacy commit-status context exists). PR #2 (ORDER 001, `products/games-web/` phase-1) also merged at `3179692`.
-
-Landing-path facts (record for the fleet):
-- `main` is ruleset-protected — direct push is rejected: "changes must be made through a pull request".
-- Arming auto-merge on an already-all-green PR is declined ("already in clean status") — so **REST merge-on-green is the working path** (R21 born-red / clean-state rule).
-- Re-verified this session on my own heartbeat PR (`boot/first-heartbeat`): merge path used = **REST merge-on-green** (auto-merge not yet enabled at repo level — see OWNER-ACTION OA-001).
-
-## ⚑ OWNER-ACTION
-
-**OA-001 — Enforce required check `substrate-gate` + enable Allow auto-merge on `main`**
-- **who:** owner (menno420)
-- **where:**
-  (a) github.com/menno420/product-forge → Settings → Rules → Rulesets → the ruleset targeting `main` → "Require status checks to pass" → **Add checks**.
-  (b) github.com/menno420/product-forge → Settings → General → "Pull Requests" section → **Allow auto-merge** checkbox.
-- **what to do:**
-  (a) In the status-checks search box, type the check name, select it, then Save the ruleset.
-  (b) Tick "Allow auto-merge" (saves on click).
-- **exact string(s) to paste:**
-  (a) `substrate-gate`
-  (b) (checkbox — no string) "Allow auto-merge"
-- **how to verify:**
-  (a) The ruleset lists `substrate-gate` under required checks; a fresh PR shows it as "Required".
-  (b) Settings → General shows "Allow auto-merge" ticked; PR pages then expose an "Enable auto-merge" button.
-
-## Routine state
-ROUTINE-STATE: armed-by-me (coordinator worker, created_via meta_mcp) — VERIFIED
-- trigger: trig_01XjviWNduYqF5jeRnRBMSFN "product-forge 2-hourly standing wake"
-- cron: 0 */2 * * * (even hours :00), enabled: true
-- target session: session_01QrRUqynDs8ijKCPqZh1ZGs (coordinator; passed as cse_01QrRUqynDs8ijKCPqZh1ZGs, server-normalized)
-- next_run_at: 2026-07-10T20:02:57Z
-- exact call: create_trigger {name: "product-forge 2-hourly standing wake", cron_expression: "0 */2 * * *", persistent_session_id: "cse_01QrRUqynDs8ijKCPqZh1ZGs", prompt: <standing 2-HOURLY WAKE text>} → result: trigger created, enabled=true
-- verify: list_triggers shows it as newest entry; no duplicate product-forge wake exists
-
-No owner click needed for the routine.
+## Next slice
+games-web phase-1 remaining ladder rung: release artifact (published static build / Pages of the
+mock sheet via the proven workflow_dispatch recipe). Real-data integration stays OUT of scope —
+needs a superbot-lane read-only API (owner/manager routing).
