@@ -50,24 +50,26 @@ function errorPanel(title, detail) {
 
 function gearChip(slotKey, slotLabel, item) {
   if (!item) {
-    return '<div class="gear-chip empty"><span class="slot">' + esc(slotLabel) + '</span>'
+    return '<div class="gear-chip empty" role="group" aria-label="' + esc(slotLabel) + ': empty slot"><span class="slot">' + esc(slotLabel) + '</span>'
       + '<span class="icon">&middot;</span><span class="name">&mdash; empty &mdash;</span></div>';
   }
   const tip = esc(item.name) + ' &middot; ' + esc(item.rarity)
     + (item.power != null ? ' &middot; &#9889;' + esc(item.power) : '');
-  return '<div class="gear-chip rarity-' + esc(item.rarity) + '" tabindex="0">'
+  const chipLabel = esc(slotLabel) + ': ' + esc(item.name) + ', ' + esc(item.rarity)
+    + (item.power != null ? ', power ' + esc(item.power) : '');
+  return '<div class="gear-chip rarity-' + esc(item.rarity) + '" tabindex="0" role="group" aria-label="' + chipLabel + '">'
     + '<span class="slot">' + esc(slotLabel) + '</span>'
     + '<span class="icon">' + iconMarkup(ART.gear[slotKey], item.icon) + '</span>'
     + '<span class="name">' + esc(item.name) + '</span>'
     + (item.power != null ? '<span class="power">&#9889;' + esc(item.power) + '</span>' : '')
-    + '<span class="chip-tip">' + tip + '</span>'
+    + '<span class="chip-tip" aria-hidden="true">' + tip + '</span>'
     + '</div>';
 }
 
 function paperDoll(gear) {
   const slot = (key, label) => gearChip(key, label, gear[key]);
-  return '<section class="panel doll">'
-    + '<h2>Gear</h2>'
+  return '<section class="panel doll" aria-labelledby="h-gear">'
+    + '<h2 id="h-gear">Gear</h2>'
     + '<div class="doll-grid">'
     +   '<div class="col left">' + slot("head", "Head") + slot("hands", "Hands") + slot("main_hand", "Main Hand") + slot("trinket", "Trinket") + '</div>'
     +   '<div class="col mid"><div class="silhouette">' + ART.miner + '</div></div>'
@@ -78,10 +80,10 @@ function paperDoll(gear) {
 
 function statsPanel(stats) {
   const rows = stats.map(s =>
-    '<div class="stat-row" title="' + esc(s.hint || "") + '">'
+    '<div class="stat-row" role="group" aria-label="' + esc(s.label) + ': ' + esc(s.value) + (s.hint ? ', ' + esc(s.hint) : '') + '" title="' + esc(s.hint || "") + '">'
     + '<span class="stat-label">' + esc(s.label) + '</span>'
     + '<span class="stat-value">' + esc(s.value) + '</span></div>').join("");
-  return '<section class="panel stats"><h2>Stats</h2>' + rows + '</section>';
+  return '<section class="panel stats" aria-labelledby="h-stats"><h2 id="h-stats">Stats</h2>' + rows + '</section>';
 }
 
 function skillsPanel(skills) {
@@ -91,28 +93,28 @@ function skillsPanel(skills) {
       + '<div class="skill-head"><span class="skill-name"><span class="skill-icon">'
       + iconMarkup(ART.skill[s.key], s.icon) + '</span>' + esc(s.label) + '</span>'
       + '<span class="skill-lvl">Lv ' + esc(s.level) + '</span></div>'
-      + '<div class="bar"><div class="bar-fill" style="width:' + pct + '%"></div>'
+      + '<div class="bar" role="progressbar" aria-valuenow="' + pct + '" aria-valuemin="0" aria-valuemax="100" aria-label="' + esc(s.label) + ' experience: ' + esc(s.xp) + ' of ' + esc(s.xp_max) + ' xp"><div class="bar-fill" aria-hidden="true" style="width:' + pct + '%"></div>'
       + '<span class="bar-text">' + esc(s.xp) + ' / ' + esc(s.xp_max) + ' xp</span></div>'
       + '</div>';
   }).join("");
-  return '<section class="panel skills"><h2>Skills</h2>' + rows + '</section>';
+  return '<section class="panel skills" aria-labelledby="h-skills"><h2 id="h-skills">Skills</h2>' + rows + '</section>';
 }
 
 function structuresPanel(structures) {
   const rows = structures.map(s =>
-    '<div class="struct-row status-' + esc(s.status) + '">'
+    '<div class="struct-row status-' + esc(s.status) + '" role="group" aria-label="' + esc(s.label) + ': tier ' + esc(s.tier) + ', ' + esc(s.status) + '">'
     + '<span class="struct-icon">' + iconMarkup(ART.structure[s.key], s.icon) + '</span>'
     + '<span class="struct-name">' + esc(s.label) + '</span>'
     + '<span class="struct-tier">T' + esc(s.tier) + '</span>'
     + '<span class="struct-status">' + esc(s.status) + '</span></div>').join("");
-  return '<section class="panel structures"><h2>Structures</h2>' + rows + '</section>';
+  return '<section class="panel structures" aria-labelledby="h-structures"><h2 id="h-structures">Structures</h2>' + rows + '</section>';
 }
 
 function headerPanel(c) {
-  return '<section class="panel hero">'
+  return '<section class="panel hero" aria-labelledby="h-hero">'
     + '<div class="portrait">' + iconMarkup(ART.portrait, c.portrait) + '</div>'
     + '<div class="hero-text">'
-    +   '<h1>' + esc(c.name) + '</h1>'
+    +   '<h1 id="h-hero">' + esc(c.name) + '</h1>'
     +   '<div class="hero-sub">Lv ' + esc(c.level) + ' &middot; ' + esc(c.class) + '</div>'
     +   '<div class="hero-title">&ldquo;' + esc(c.title) + '&rdquo;</div>'
     + '</div></section>';
@@ -129,6 +131,7 @@ function render(app, state) {
 
 async function loadAndRender(url) {
   const app = document.getElementById("app");
+  app.setAttribute("aria-busy", "true");
   app.innerHTML = '<p class="loading">Loading character sheet&hellip;</p>';
   let state;
   try {
@@ -138,6 +141,7 @@ async function loadAndRender(url) {
   } catch (err) {
     app.innerHTML = errorPanel("Could not load mock game-state",
       err.message + " — serve this folder over HTTP (./run.sh); opening index.html as a file:// URL will not work.");
+    app.setAttribute("aria-busy", "false");
     return;
   }
   const major = parseInt(String(state.schema_version).split(".")[0], 10);
@@ -145,9 +149,13 @@ async function loadAndRender(url) {
     app.innerHTML = errorPanel("Unsupported contract",
       "Got " + state.contract + " v" + state.schema_version
       + "; renderer speaks games-web.character-sheet v" + SUPPORTED_MAJOR + ".x");
+    app.setAttribute("aria-busy", "false");
     return;
   }
   render(app, state);
+  app.setAttribute("aria-busy", "false");
+  var st = document.getElementById("load-status");
+  if (st) st.textContent = "Loaded " + state.character.name;
 }
 
 function main() {
