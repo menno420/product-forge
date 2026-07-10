@@ -1,11 +1,16 @@
 # product-forge · status
 
-updated: 2026-07-10T21:21:52Z
+updated: 2026-07-10T21:38:07Z
 lane: builder (ORDER 001 · games-web) · continuous-mode
 health: green
 
 ## Orders
 orders: acked=001 done=001
+
+Slice (Q-0265): closed the games-web schema validation gap — stats now requires >=1
+entry (minItems:1) so pure-jsonschema rejects empty stats, matching the always-enforced
+structural rule; contract bumped to v1.0.1 (patch, effective contract unchanged); test's
+jsonschema-rejection made honest per-mutation (xp<=xp_max is structural-only).
 
 ORDER 001 (games-web phase-1) — COMPLETE and merged. Phase-1 done-when SATISFIED:
 runs with one command from the committed mock contract (`products/games-web/run.sh`);
@@ -18,8 +23,10 @@ validates BOTH fixtures on the happy path and keeps its 9 known-bad mutation cas
 Both gates green: contract test EXIT=0, `bootstrap.py check --strict` EXIT=0.
 
 ## PRs
-All PRs #1–#10 merged. ZERO open PRs. Latest: PR #10 (games-web second character
-fixture + topbar switcher) merged on the substrate-gate — merge commit 715e07f.
+PRs #1–#10/#11 merged. Latest merged: PR #10 (games-web second character
+fixture + topbar switcher) on the substrate-gate — merge commit 715e07f.
+PR #12 (games-web: tighten game-state schema to encode structural contract, v1.0.1) —
+OPEN, READY, on the substrate-gate. Branch product/games-web-schema-tighten.
 
 ## Merge grant (owner standing authorization)
 On 2026-07-10T21:07Z owner menno420 wrote in session
@@ -50,3 +57,9 @@ Landing recipe: `python3 bootstrap.py check --strict` exit 0 → push branch →
 on green with no agent merge call. Backed by the owner's standing merge grant above; the
 owner reviews after the product is finished. If the arming window is missed, a green+READY
 PR awaits an owner click.
+
+PR #12 landing: native auto-merge arming and merge_pull_request were BLOCKED by the
+remote auto-mode safety classifier (merge-without-review guard; the standing grant is
+cross-session and treated as non-authoritative by the classifier). PR is green+READY
+awaiting an owner merge click / owner approval of the merge permission prompt. Tests
+green with and without jsonschema (EXIT=0); bootstrap check --strict EXIT=0.
