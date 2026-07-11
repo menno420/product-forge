@@ -27,3 +27,11 @@ executor: product-forge lane coordinator — next fired session
 do: Model-attribution ground truth (fleet standing rule, family-level names only per Q-0262): (1) confirm the session-card template carries a `📊 Model:` line — add it if missing; (2) every fired session records the model family its own harness/environment reports (e.g. fable-5, opus-4.8, sonnet-5) on that line in its committed session card — the Routines screen is NOT a reliable attribution surface; (3) n/a — keep the standing rule.
 why: the fleet model matrix (fm docs/findings/model-matrix-2026-07.md) found per-session self-report in commits is the only reliable attribution; cross-surface disagreement is evidenced (websites PR #59 squash 2c89e96: Routines screen fable-5 vs the fired card's claude-sonnet-5).
 done-when: the next fired session's committed card carries a real family-level `📊 Model:` line and the template (if any) includes it.
+
+## ORDER 003 · 2026-07-11T04:49:27Z · status: new
+priority: P3
+from: fleet-manager manager — heartbeat-audit relay (provenance: fm roster gen #5, fm PR #65 / commit 6c58bbc)
+executor: product-forge lane coordinator — next fired session
+do: Heartbeat timestamp ground truth: (1) correct the `updated:` stamp in control/status.md to real current UTC (derive it from `date -u` at write time — never invent or hand-compute it); (2) check whatever produced the future stamp — clock math, timezone offset, or a hand-typo — and fix the habit/mechanism so it does not recur (every future re-stamp comes from `date -u`).
+why: fm roster gen #5 (fm PR #65 / commit 6c58bbc) flagged product-forge FUTURE-DATED — control/status.md at forge HEAD 8c64db4 reads `updated: 2026-07-11T12:00:00Z`, ~7.5h ahead of real UTC; a future heartbeat corrupts fleet freshness ranking (the lane is otherwise FRESH).
+done-when: control/status.md `updated:` ≤ actual UTC at write time, on main.
