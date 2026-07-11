@@ -1,0 +1,27 @@
+name: heartbeat-guard
+
+on:
+  pull_request:
+    paths:
+      - 'control/status.md'
+      - 'control/status-*.md'
+      - 'scripts/check-heartbeat.py'
+  push:
+    branches: [main]
+    paths:
+      - 'control/status.md'
+      - 'control/status-*.md'
+      - 'scripts/check-heartbeat.py'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Reject future-dated heartbeat stamps
+        run: python3 scripts/check-heartbeat.py
