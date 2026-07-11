@@ -18,4 +18,9 @@
   step. Model + time line on every card from card #1.
 - **Heartbeat-before-work:** the session's first act is a status/WIP commit; a silent
   session is indistinguishable from a dead one.
+- **Heartbeat stamp is machine-derived, never typed.** The `updated:` line in
+  `control/status.md` MUST be pasted from the output of `date -u +%Y-%m-%dT%H:%M:%SZ` at
+  write time — re-derive it immediately before each commit that touches the line. A
+  future/invented stamp corrupts fleet freshness ranking; the local guard
+  `scripts/check-heartbeat.py` (and CI) reject any stamp ahead of now.
 - **Repo conventions override harness defaults.**

@@ -5,3 +5,5 @@ Per-session logs live here as `<date>-<slug>.md`, newest first. Create the log a
 If the card is missing at session end, the kit **auto-drafts** one from evidence (files touched, git HEAD movement, the verify command); an in-progress card missing its close-out gets the drafted section appended. A draft is a starting point, not a close-out: verify the evidence, resolve every `[[fill:]]` slot, then flip the Status badge — unresolved slots (and the `drafted` status) keep the card counting incomplete.
 
 **Guard recipes:** when a card records friction-to-guard material for a *later* session (a deferred fix, a flagged footgun), carry a one-line **guard recipe** naming the code anchors — function + file + the test target — not just the symptom. A symptom-only entry costs the next session a re-derivation grep pass; a recipe lets it land the guard in minutes.
+
+The `control/status.md` `updated:` heartbeat is machine-derived — paste it from `date -u +%Y-%m-%dT%H:%M:%SZ` at write time; never hand-type or round it (a future stamp is rejected by `scripts/check-heartbeat.py`).

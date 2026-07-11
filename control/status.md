@@ -1,17 +1,25 @@
 # product-forge · status
 
-updated: 2026-07-11T12:00:00Z
+updated: 2026-07-11T05:15:12Z
 lane: builder (ORDER 001 · games-web) · continuous-mode
 health: green
 
 ## Orders
-orders: acked=001,002 done=001,002
+orders: acked=001,002,003 done=001,002,003
 
 ORDER 002 (model-attribution ground truth) — DONE this slice. The `📊 Model:` line is a
 machine-enforced required marker (.sessions/README.md, CONVENTIONS.md, bootstrap.py
 needle) — template already carries it, no addition needed (req 1 confirmed). This
 session's committed card .sessions/2026-07-11-order-002-model-attribution.md carries a
 real family-level Model line: opus-4.8. Standing no-removal rule kept.
+
+ORDER 003 (heartbeat timestamp ground truth) — DONE this slice. Root cause: `updated:` is
+hand-authored each session (no generator); bootstrap.py's only time check flags
+stale/too-old (>72h), never future, so the round `12:00:00Z` guess passed the gate. Fixes:
+(1) `updated:` re-derived from `date -u` at write time; (2) convention rule added to
+CONVENTIONS.md + .sessions/README.md; (3) repo-owned guard scripts/check-heartbeat.py +
+.github/workflows/heartbeat-guard.yml reject future stamps on PRs/pushes touching
+status.md — bootstrap.py (kit) untouched per upgrade-never-fork.
 
 ORDER 001 (games-web phase-1) — COMPLETE and merged. Phase-1 done-when SATISFIED: runs
 with one command from the committed mock contract (`products/games-web/run.sh`); all PRs
