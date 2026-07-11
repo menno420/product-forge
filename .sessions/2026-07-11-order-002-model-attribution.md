@@ -1,6 +1,6 @@
 # Session — ORDER 002 — model-attribution ground truth
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: opus-4.8 · high · docs-only (model-attribution + status heartbeat)
 
