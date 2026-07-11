@@ -1,11 +1,17 @@
 # product-forge · status
 
-updated: 2026-07-10T22:22:00Z
+updated: 2026-07-11T12:00:00Z
 lane: builder (ORDER 001 · games-web) · continuous-mode
 health: green
 
 ## Orders
-orders: acked=001 done=001
+orders: acked=001,002 done=001,002
+
+ORDER 002 (model-attribution ground truth) — DONE this slice. The `📊 Model:` line is a
+machine-enforced required marker (.sessions/README.md, CONVENTIONS.md, bootstrap.py
+needle) — template already carries it, no addition needed (req 1 confirmed). This
+session's committed card .sessions/2026-07-11-order-002-model-attribution.md carries a
+real family-level Model line: opus-4.8. Standing no-removal rule kept.
 
 ORDER 001 (games-web phase-1) — COMPLETE and merged. Phase-1 done-when SATISFIED: runs
 with one command from the committed mock contract (`products/games-web/run.sh`); all PRs
@@ -57,7 +63,7 @@ only on green).
    the coordinator). No PR waits for review; none is left unflagged.
 
 ## Manager flag
-⚑ Inbox DRY — no new ORDER beyond 001 (COMPLETE); the forge needs new ORDERs to build.
+⚑ Inbox otherwise DRY — no new ORDER beyond 001/002 (both DONE); the forge needs new ORDERs to build.
    games-web phase-2 (real-data integration) stays BLOCKED on a superbot-lane read-only
    API. Dependency request is a concrete artifact:
    products/games-web/docs/phase2-data-api-proposal.md (read-only
