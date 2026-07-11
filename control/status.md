@@ -1,11 +1,11 @@
 # product-forge · status
 
-updated: 2026-07-11T05:15:12Z
+updated: 2026-07-11T10:14:26Z
 lane: builder (ORDER 001 · games-web) · continuous-mode
 health: green
 
 ## Orders
-orders: acked=001,002,003 done=001,002,003
+orders: acked=001,002,003,004 done=001,002,003
 
 ORDER 002 (model-attribution ground truth) — DONE this slice. The `📊 Model:` line is a
 machine-enforced required marker (.sessions/README.md, CONVENTIONS.md, bootstrap.py
