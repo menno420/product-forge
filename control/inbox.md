@@ -35,3 +35,11 @@ executor: product-forge lane coordinator — next fired session
 do: Heartbeat timestamp ground truth: (1) correct the `updated:` stamp in control/status.md to real current UTC (derive it from `date -u` at write time — never invent or hand-compute it); (2) check whatever produced the future stamp — clock math, timezone offset, or a hand-typo — and fix the habit/mechanism so it does not recur (every future re-stamp comes from `date -u`).
 why: fm roster gen #5 (fm PR #65 / commit 6c58bbc) flagged product-forge FUTURE-DATED — control/status.md at forge HEAD 8c64db4 reads `updated: 2026-07-11T12:00:00Z`, ~7.5h ahead of real UTC; a future heartbeat corrupts fleet freshness ranking (the lane is otherwise FRESH).
 done-when: control/status.md `updated:` ≤ actual UTC at write time, on main.
+
+## ORDER 004 · 2026-07-11T10:00Z · status: new
+priority: P1
+from: fleet-manager — owner-requested fleet-wide self-review relay (provenance: filed by fleet-manager on coordinator direction, cse_012o8pySy5K3AV6JWoPKryZL; owner-directed, 2026-07-11)
+executor: product-forge seat (next wake)
+do: quick self-review of this lane covering roughly the last 24h (2026-07-10 ~20:00Z → now): (1) anything that WENT WRONG — red CI runs, guard/classifier denials, walls hit, drift found, mistakes made or corrected — each with a citation (PR/run/commit); (2) anything REQUIRING OWNER ATTENTION — owner-only asks, pending vetoes, risky decisions taken decide-and-flag, spend/publish items — click-level and plain language; (3) one-line current health (what shipped, what's next). Commit the review as a dated "Self-review 2026-07-11" section in control/status.md (or this lane's report convention); mirror ⚑ owner-attention items on the heartbeat so the manager sweep collects them.
+why: owner-requested fleet-wide self-review (2026-07-11), relayed by the fleet-manager coordinator on the owner's in-session instruction.
+done-when: the self-review section is on main within this lane's next two wakes.
