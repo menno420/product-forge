@@ -11,7 +11,10 @@
 - PR #5 · games-web core/tests/README · merged green — overlap-with-#4 window; verify no lost edits from the two-writer race.
 - PR #6 · games-web release/landing · merged green — auto-merge pending-window recipe verified here.
 - PR #7 · phase-2 proposal + platform-limits · merged green — docs-only.
-- PR #8 · games-web visual polish · OPEN, awaiting owner click — classifier denied auto-merge arming (seat-variance); needs an owner merge click, do NOT raw-merge.
+- PR #8 · games-web visual polish · MERGED green — auto-merge arming was denied by the classifier (seat-variance), so it needed an owner merge click; that click landed and #8 is now merged, no re-check needed.
+
+> **Status as of 2026-07-11:** PRs #1–#21 are ALL merged — zero open, zero closed-unmerged.
+> The ledger lines above are the Day-1 snapshot; every entry has since landed on green.
 
 ## Follow-ups surfaced by the day-1 retro
 

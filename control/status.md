@@ -1,6 +1,6 @@
 # product-forge · status
 
-updated: 2026-07-11T10:17:57Z
+updated: 2026-07-11T10:27:30Z
 lane: builder (ORDER 001 · games-web) · continuous-mode
 health: green
 
@@ -51,7 +51,7 @@ Correction to the relay: the count is 20 PRs merged all-time (#1–#20, zero ope
 ### Owner attention (click-level)
 - ⚑ OA-003 (open): Settings → Pages → Source "GitHub Actions" → games-web goes live at https://menno420.github.io/product-forge/ on the next deploy run. Site is 404 until then. Pages-enabled state is not confirmable from git; both deploy runs failing at configure-pages is strong evidence it is still off.
 - ⚑ Merge consent is session-scoped: owner grants work via the coordinator seat, but per-seat classifier variance persists. A settings-level permission allow-rule for the GitHub merge tools would remove the variance entirely (optional convenience — not required to land PRs; the pending-window recipe + coordinator merges already land every PR on green).
-- ⚑ review-queue.md missing: the one-writer-per-subtree convention proposed after the #4/#5 overlap has no queued line at HEAD (control/review-queue.md absent) — needs the manager to ratify and a home for the convention.
+- ⚑ one-writer-per-subtree convention (proposed after the #4/#5 overlap) is queued in review-queue.md (repo ROOT, added PR #9 916a407) — needs the manager to ratify it into CONVENTIONS.md. The earlier "review-queue.md missing/absent" flag was a wrong-path observation error: it looked under control/review-queue.md, but the file has lived at the repo root continuously since seed 5d52f45 (last touched PR #13 d878851) and is present + current at HEAD.
 - Spend: NONE executed. Pages is free (Q-0259 r.4 honored).
 
 ### Health (one line)
@@ -101,7 +101,7 @@ only on green).
    make the games-web live preview go live; the deploy workflow is ready and re-runs on
    the next push to products/games-web/**.
 ⚑ Merge consent session-scoped (self-review 2026-07-11) — per-seat auto-merge classifier variance persists; optional fix is a settings-level allow-rule for the GitHub merge tools. Not blocking (pending-window recipe + coordinator merges land every PR).
-⚑ review-queue.md absent at HEAD — one-writer-per-subtree convention (post #4/#5 overlap) needs manager ratify + a home. No spend/publish/veto pending.
+⚑ one-writer-per-subtree convention (post #4/#5 overlap) is queued in review-queue.md (repo root, added PR #9 916a407) — needs manager ratify into CONVENTIONS.md. Prior "absent" flag was a wrong-path error (looked under control/; file lives at root, present + current at HEAD). No spend/publish/veto pending.
 
 ## Continuous mode
 Active. Chain alive (send_later continuation ticks) + failsafe cron
