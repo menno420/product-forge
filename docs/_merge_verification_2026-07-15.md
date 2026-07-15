@@ -1,5 +1,7 @@
 # Merge-automation verification probe (2026-07-15)
 
+> **Status:** `historical`
+
 This file was added by an ordinary, non-workflow content PR to verify whether
 this repo's merge-on-green mechanism lands a normal code/doc PR on green CI
 with zero human click. It is safe to delete once the audit that created it
