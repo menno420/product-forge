@@ -21,3 +21,17 @@ its own repo (owner click) and becomes a lane.
 - **State:** alpha — phase-1 (mock-data) COMPLETE and merged; real-data integration is
   blocked on a superbot-lane read-only API
   (`products/games-web/docs/phase2-data-api-proposal.md`).
+
+### phone-controller — turn a phone into a Bluetooth-HID controller
+- **What:** make a phone act as a customizable Bluetooth-HID controller (keyboard / mouse
+  / gamepad / media remote) for phones, tablets, TVs and PCs. From the Ideas-Lab plan
+  `menno420/idea-engine : ideas/product-forge/bt-controller-plan-2026-07-17.md`. This
+  slice ships the idea's **Slice 1** — a portable capability-probe verdict engine +
+  receiver-compatibility matrix (the platform-agnostic decision core the Android UI will
+  call).
+- **Run (one command):** `products/phone-controller/run.sh` (stdlib-only) — verdicts for
+  representative device scenarios + the receiver matrix; pass `--platform/--api/…` for one
+  explicit probe.
+- **State:** alpha — Slice 1 (capability core) runnable + tested (26 tests). The actual
+  `BluetoothHidDevice` transport and the Android/Kotlin UI are later slices (need an
+  Android build lane; can't go green in this CI). iOS-as-controller is deferred (OS wall).
