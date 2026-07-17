@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android app manifest (SKELETON, Slice 2). Declares the Bluetooth permissions the
+  BluetoothHidDevice transport needs. Not built by CI yet (see app/build.gradle.kts).
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Android 12+ (API 31+) runtime Bluetooth permissions. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+
+    <!-- Legacy permissions for API 28..30 (maxSdkVersion so 31+ uses the new model). -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+
+    <!-- Classic BT-HID needs Bluetooth hardware; not required=false so no-BT devices
+         can still install and show the capability verdict. -->
+    <uses-feature
+        android:name="android.hardware.bluetooth"
+        android:required="false" />
+
+    <application android:label="Phone Controller">
+        <!-- Activities added in Slice 3 (capability screen + controller UI). -->
+    </application>
+</manifest>
