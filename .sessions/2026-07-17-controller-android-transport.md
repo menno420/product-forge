@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 2 (Android BluetoothHidDevice transport + Kotlin verdict port)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: opus-4.8 · high · build (Android module skeleton under `products/phone-controller/android/`)
 
@@ -74,4 +74,15 @@ picks up `__pycache__`; add a `.gitignore` in the scaffold commit — is honored
 
 ## Close-out review remark
 
-_(filled at close-out)_
+Shipped Slice 2's Android layer in PR #28 (`claude/controller-android-transport`): a
+pure-JVM Kotlin port of the Slice-1 verdict engine (13 JVM unit tests green locally under
+Gradle 8.14.3 / JDK 21, `gradle :capability-core:test` → BUILD SUCCESSFUL) plus the real
+`BluetoothHidDeviceTransport` (getProfileProxy → registerApp with a fixed media-remote
+SDP/descriptor → sendReport → shared `evaluate()`). Scoped tight: the Android layer consumes
+the SAME decision model rather than re-deriving it, and the CI-workflow file is confined to a
+separate owner-gated PR so this reversible code lands now. One guard recipe for the next
+session: `gradle :capability-core:test` leaves `build/` + `.gradle/` in the module — the
+`android/.gitignore` added in the scaffold commit excludes them (mirrors the Slice-1
+`__pycache__` guard); never `git add` the whole subtree without it. The `app/` transport is
+skeleton source and NOT CI-compiled — Slice 3 wires it into `settings.gradle.kts` and adds an
+`assembleDebug` lane once there's a UI worth building.
