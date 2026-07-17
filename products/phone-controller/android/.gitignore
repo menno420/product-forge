@@ -1,0 +1,9 @@
+# Gradle / build artifacts — never committed.
+.gradle/
+build/
+*/build/
+local.properties
+
+# IDE
+.idea/
+*.iml
