@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 2 (Gradle CI lane for the Android verdict port)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: opus-4.8 · high · CI (new `.github/workflows/android-ci.yml`)
 
@@ -53,4 +53,13 @@ no CI workflow — this PR is the deferred workflow, isolated so it parks alone.
 
 ## Close-out review remark
 
-_(filled at close-out)_
+Shipped the Slice-2 CI lane in PR #29 (`claude/controller-gradle-ci`):
+`.github/workflows/android-ci.yml` runs `gradle :capability-core:test` (JDK 21, no Android
+SDK). The lane triggered correctly on the PR — its `capability-core` check ran against `main`
+(which already carries the Android module via #28) alongside `substrate-gate`. As designed,
+the PR **parks owner-merge-only** on `merge-on-green`'s workflow-touching rail; the blocker is
+named as an OWNER-ACTION item in the PR body. Confining the workflow to this one-file PR let
+the reversible Slice-2 code (#28) auto-land separately — the split held exactly as the Slice-1
+card predicted. Guard recipe for Slice 3: to build the `app/` module in CI, uncomment
+`include(":app")` in `settings.gradle.kts`, add an `android-actions/setup-android` step, and a
+second job running `gradle :app:assembleDebug` in this same lane.
