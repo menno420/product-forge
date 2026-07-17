@@ -1,6 +1,6 @@
 # Session — phone-controller MVP (slice 1: capability probe + receiver matrix)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: opus-4.8 · high · build (new product subtree `products/phone-controller/`)
 
@@ -54,3 +54,14 @@ cross-product imports, per `products/README.md`).
    `control/inbox.md` and `control/status.md` for the coordinator (one-writer rule).
 4. **Did not arm auto-merge / self-merge** (per directive). Opened READY; left the repo's
    own server-side `merge-on-green.yml` to land it once green + this card flips `complete`.
+
+## Close-out review remark
+
+Shipped `products/phone-controller/` Slice 1 in PR #27 (`claude/controller-app-mvp`):
+verdict engine + receiver matrix + CLI, 26 stdlib tests green, `bootstrap.py check
+--strict` green; scoped tight to the platform-agnostic core, Android UI flagged as the
+next slice — no scope creep, no owner input awaited. One self-caught slip: an initial
+build commit staged `__pycache__` artifacts; removed them, added a `.gitignore`, and
+amended before the build push (guard recipe for the next session: `git add <subtree>`
+in a stdlib product picks up `__pycache__` — add the product `.gitignore` in the
+scaffold commit).
