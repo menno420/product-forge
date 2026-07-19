@@ -7,20 +7,25 @@
 #             lane compiles + unit-tests that port so the decision model is
 #             proven green in CI, with NO Android SDK download (the port is
 #             SDK-free by design — see the module README's decide-and-flag).
-# Scope     : builds ONLY the pure-JVM :capability-core module. The Android
-#             app module (app/, the real BluetoothHidDevice transport) needs
-#             the Android SDK + AGP and is intentionally NOT in
-#             settings.gradle.kts yet; Slice 3 wires it in and adds an
-#             assembleDebug job with an android-actions/setup-android step.
+# Slice 3   : adds a SECOND job — assemble-app — that provisions the Android
+#             SDK (android-actions/setup-android) and runs
+#             `gradle :app:assembleDebug`, proving the real Android app
+#             module (the BluetoothHidDevice transport + capability-screen
+#             entry point, wired into settings.gradle.kts in PR #31) actually
+#             compiles into a debug APK. The two jobs stay SEPARATE on
+#             purpose: capability-core is fast + SDK-free (the load-bearing
+#             decision model), assemble-app is the heavier compile proof.
 # Decide-and-flag : Gradle is provided by gradle/actions/setup-gradle rather
 #             than a committed wrapper jar, so the repo carries no binary
-#             blob. Reversible — a `gradle wrapper` + `./gradlew` can replace
-#             this in Slice 3 if a pinned wrapper is preferred.
-# Owner-gate: this is a NEW .github/workflows/** file, which merge-on-green.yml
+#             blob; the Android SDK is provisioned by android-actions/
+#             setup-android (which exports ANDROID_HOME — the env var that
+#             flips `include(":app")` on in settings.gradle.kts) rather than
+#             committed to the repo. Reversible.
+# Owner-gate: this is a .github/workflows/** file, which merge-on-green.yml
 #             parks as owner-merge-only (its workflow-touching rail). It ships
-#             in its OWN small PR so the Slice-2 code could auto-land
+#             in its OWN PR so the Slice-3 code (PR #31) could auto-land
 #             separately; this file waits for the owner to merge.
-# Date      : 2026-07-17 (phone-controller Slice 2)
+# Date      : 2026-07-17 (Slice 2) · 2026-07-19 (Slice 3: assemble-app job)
 # ========================================================================
 name: android-ci
 on:
@@ -55,3 +60,34 @@ jobs:
           gradle-version: "8.14.3"
       - name: Build + unit-test the pure-JVM Kotlin verdict port
         run: gradle :capability-core:test --no-daemon --console=plain
+
+  assemble-app:
+    # Compile-proof for the Android app module (the real BluetoothHidDevice
+    # transport + capability-screen entry point). Needs the Android SDK, so
+    # it is a SEPARATE job from the SDK-free capability-core lane above.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: products/phone-controller/android
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Set up Android SDK
+        # Exports ANDROID_HOME / ANDROID_SDK_ROOT and accepts licenses — the
+        # presence of ANDROID_HOME is exactly what flips `include(":app")` on
+        # in settings.gradle.kts (SDK-gated include).
+        uses: android-actions/setup-android@v3
+      - name: Install the SDK packages the app module compiles against
+        # Deterministic over AGP's auto-download: compileSdk 34 + build-tools
+        # 34.0.0 (see app/build.gradle.kts).
+        run: sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+      - name: Assemble the debug APK (compiles the real transport + entry point)
+        run: gradle :app:assembleDebug --no-daemon --console=plain
