@@ -1,18 +1,15 @@
 /*
- * app — the Android application module (SKELETON, Slice 2).
+ * app — the Android application module.
  *
- * ⚠️ NOT WIRED INTO THE BUILD OR CI YET. This module needs the Android Gradle Plugin
- * + a full Android SDK, so it is deliberately absent from ../settings.gradle.kts and
- * is NOT compiled by the CI lane (which builds only the SDK-free :capability-core).
- * Slice 3 wires this in: uncomment the `include(":app")` in settings.gradle.kts, add
- * an `assembleDebug` CI job with an Android-SDK setup step, and grow the media-remote
- * skeleton into the customisable controller UI.
+ * Wired into the build in Slice 3 (see ../settings.gradle.kts `include(":app")`). This
+ * module needs the Android Gradle Plugin + a full Android SDK, so its `assembleDebug`
+ * runs in a dedicated CI job that provisions the SDK (android-actions/setup-android),
+ * kept separate from the SDK-free `:capability-core:test` job.
  *
- * The block below is the intended AGP configuration, kept as documentation-in-code so
- * the wiring in Slice 3 is a small, obvious diff rather than a from-scratch guess.
+ * The Android layer consumes the SAME shared decision model the portable Python core
+ * defines: it depends on :capability-core and calls `evaluate()` from the real
+ * BluetoothHidDevice transport — the decision table is shared, never re-derived.
  */
-
-/*
 plugins {
     id("com.android.application") version "8.5.2"
     kotlin("android") version "2.0.21"
@@ -27,7 +24,15 @@ android {
         minSdk = 28          // BluetoothHidDevice requires API 28 (Android 9)
         targetSdk = 34
         versionCode = 1
-        versionName = "0.2.0-slice2"
+        versionName = "0.3.0-slice3"
+    }
+
+    buildTypes {
+        // Debug is the only variant Slice 3 needs (assembleDebug in CI). Release
+        // signing/minification is a later, owner-facing slice.
+        getByName("debug") {
+            isMinifyEnabled = false
+        }
     }
 
     compileOptions {
@@ -41,4 +46,3 @@ dependencies {
     // The Android layer consumes the SAME shared decision model the Python core defines.
     implementation(project(":capability-core"))
 }
-*/

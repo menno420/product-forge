@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  String resources for the Slice-3 capability-screen stub (MainActivity). The verdict
+  text comes from the shared decision model (:capability-core evaluate()); these are
+  just the display frames. The full controller UI's strings arrive in a later slice.
+-->
+<resources>
+    <string name="app_name">Phone Controller</string>
+    <string name="probing">Probing controller capability…</string>
+    <!-- %1$s = verdict code, %2$s = human-readable reason from the shared engine. -->
+    <string name="verdict_fmt">Verdict: %1$s\n\n%2$s</string>
+    <string name="error_fmt">Transport error: %1$s</string>
+</resources>
