@@ -18,9 +18,11 @@ android/
     build.gradle.kts
     src/main/kotlin/.../capability/Capability.kt      # Kotlin port of capability.py
     src/test/kotlin/.../capability/CapabilityTest.kt  # lockstep tests (JVM, no SDK)
-  app/                         # Android app SKELETON — NOT built by CI (needs the SDK)
-    build.gradle.kts           # intended AGP config, commented until Slice 3
+  app/                         # Android app module — assembleDebug (needs the Android SDK)
+    build.gradle.kts           # AGP config (com.android.application 8.5.2)
     src/main/AndroidManifest.xml
+    src/main/res/values/strings.xml                                # capability-screen strings
+    src/main/kotlin/.../MainActivity.kt                            # capability-screen entry point
     src/main/kotlin/.../transport/BluetoothHidDeviceTransport.kt   # the real transport
     src/main/kotlin/.../transport/MediaRemoteHidDescriptor.kt      # fixed HID descriptor
 ```
@@ -54,29 +56,42 @@ reconnection, and the BLE-HOGP fallback are **Slice 3+**.
 
 ## Building & testing
 
-CI builds the SDK-free module only:
+The SDK-free verdict port needs no Android toolchain:
 
 ```bash
 cd products/phone-controller/android
 gradle :capability-core:test        # pure-JVM Kotlin unit tests, no Android SDK
 ```
 
-The `app/` module is skeleton source and is intentionally **not** in the Gradle build
-yet (it needs the Android SDK + AGP). Slice 3 wires it in and adds an `assembleDebug`
-CI job. The CI lane that runs the command above lives in
-`.github/workflows/android-ci.yml` (added in a companion, owner-gated workflow PR — the
-repo's `merge-on-green` parks any `.github/workflows/**` change for owner review).
+The `app/` module is wired into the build (Slice 3) but `include(":app")` is **gated on
+Android-SDK presence** — a bare `:capability-core:test` never configures AGP, so the
+verdict lane stays SDK-free. With an Android SDK provisioned (`ANDROID_HOME` set, e.g. by
+`android-actions/setup-android`):
+
+```bash
+gradle :app:assembleDebug           # builds the debug APK (needs the Android SDK + AGP)
+```
+
+The CI lane lives in `.github/workflows/android-ci.yml`. Its `assembleDebug` job is added
+in a companion, owner-gated workflow PR — the repo's `merge-on-green` parks any
+`.github/workflows/**` change for owner review.
 
 ## Decide-and-flag choices
 
-- **CI builds a pure-Kotlin verdict port, not `assembleDebug`.** A JVM unit-test lane
-  needs no Android SDK download, so it is far more reliable in CI, and it tests the
-  load-bearing decision model directly. The real `BluetoothHidDevice` transport cannot
-  be unit-tested without hardware anyway, so `assembleDebug` would only prove it
-  compiles — lower value than testing the verdict port. Upgrade to `assembleDebug` in
-  Slice 3 when there is a UI worth compiling. *(Reversible.)*
-- **`app/` kept out of `settings.gradle.kts`.** Keeps `gradle :capability-core:test`
-  Android-toolchain-free; the app module is reviewable skeleton source until Slice 3.
-- **Kotlin 2.0.21 + Gradle 8.x, no committed wrapper jar.** CI provides Gradle via the
-  `gradle/actions/setup-gradle` action instead of a committed binary wrapper jar,
-  avoiding a binary blob in the repo. *(Reversible.)*
+- **`include(":app")` gated on Android-SDK presence.** Applying AGP needs a resolvable
+  SDK; configuring `:app` without one fails the *whole* build (Gradle configures every
+  included project), which would red the SDK-free `:capability-core:test` lane. Gating the
+  include on `ANDROID_HOME` / `ANDROID_SDK_ROOT` / `local.properties` keeps the verdict
+  lane Android-toolchain-free while the assembleDebug job (which provisions the SDK) gets
+  the app module. *(Reversible — drop the guard once every lane provisions the SDK.)*
+- **Two CI jobs, kept split.** `:capability-core:test` stays a fast, SDK-free job that
+  tests the load-bearing decision model directly; `:app:assembleDebug` is a separate job
+  that provisions the Android SDK and proves the real transport compiles. The transport
+  can't be unit-tested without hardware, so assembleDebug proves compilation, not runtime.
+- **Stub `MainActivity`, no AndroidX.** Plain `android.app.Activity` + a programmatic
+  `TextView` — the smallest entry point that compiles the AGP build against the shared
+  decision model and the real transport. The customisable controller UI is a later slice.
+  *(Reversible.)*
+- **Kotlin 2.0.21 + AGP 8.5.2 + Gradle 8.x, no committed wrapper jar / no committed SDK.**
+  CI provides Gradle via `gradle/actions/setup-gradle` and the SDK via
+  `android-actions/setup-android`, avoiding a binary blob in the repo. *(Reversible.)*
