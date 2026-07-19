@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 3 (wire the Android app module into the build)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: Opus 4.8 · high · build (Android `app/` module wired into Gradle + assembleDebug proof)
 
@@ -100,4 +100,19 @@ so the locally-built `app-debug.apk` and SDK-generated files are never staged.
 
 ## Close-out review remark
 
-_(filled in at flip-to-complete.)_
+Shipped Slice 3's code half in **PR #31** (`claude/controller-app-module`): the Android
+`app/` module is now wired into the Gradle build and **actually compiles**. Proven locally
+under Gradle 8.14.3 / JDK 21 with an Android SDK (platform-34, build-tools 34.0.0)
+provisioned: `gradle :app:assembleDebug` → **BUILD SUCCESSFUL**, packaging
+`app-debug.apk` — the real `BluetoothHidDeviceTransport`, `MainActivity`, and resources
+all compile and link; and `gradle :capability-core:test` → BUILD SUCCESSFUL with `:app`
+correctly excluded (13 JVM tests), proving the SDK-gated include keeps the verdict lane
+SDK-free. The decision-model wiring is intact — `MainActivity` reaches `evaluate()`
+through the transport. The `assembleDebug` **CI** job (an `android-ci.yml` edit) ships as
+the companion, owner-gated **workflow PR** (⚑ OWNER-ACTION), branched off `main` AFTER
+this code PR merges so its assembleDebug builds against the wired `app/`. Guard recipe for
+the workflow half / next session: the assembleDebug CI job MUST `android-actions/setup-android`
+(or install cmdline-tools + `platforms;android-34` + `build-tools;34.0.0`) so `ANDROID_HOME`
+is exported — that env var is exactly what flips `include(":app")` on in `settings.gradle.kts`;
+without it the app module is silently skipped and assembleDebug finds no `:app` task. The
+real receiver-driving playtest remains hardware-gated (**owner playtests**).
