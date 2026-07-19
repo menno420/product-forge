@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 3 (assembleDebug CI job for the Android app module)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: Opus 4.8 · high · CI (`.github/workflows/android-ci.yml` — add an assembleDebug job)
 
@@ -69,4 +69,19 @@ AGP's auto-download. The Slice-2 CI card
 
 ## Close-out review remark
 
-_(filled in at flip-to-complete.)_
+Shipped the Slice-3 CI workflow half in **PR #32** (`claude/controller-assembledebug-ci`):
+`.github/workflows/android-ci.yml` gains an `assemble-app` job that provisions the Android
+SDK (`android-actions/setup-android` + `sdkmanager platforms;android-34 build-tools;34.0.0`)
+and runs `gradle :app:assembleDebug`. **It went GREEN on the PR** — the CI `assemble-app`
+check reported `BUILD SUCCESSFUL in 1m` (36 actionable tasks executed), so the real
+`BluetoothHidDeviceTransport` + `MainActivity` compile into a debug APK *in CI*, not just
+locally; the SDK-provisioned job set `ANDROID_HOME`, which flipped `include(":app")` on
+exactly as designed. The SDK-free `capability-core` job stayed green in the same run
+(≈1 min, no Android toolchain), proving the two-lane split holds. As designed, the PR
+**parks owner-merge-only** on `merge-on-green`'s workflow-touching rail — the blocker is
+named ⚑ OWNER-ACTION in the PR body; the reversible code half already auto-landed (#31).
+Guard recipe for the next slice: the customisable controller UI will add AndroidX/Compose
+deps — when it does, `assemble-app` gains a Gradle dependency-cache warm-up cost; the
+`gradle/actions/setup-gradle` cache in this job already covers it, but a pinned
+`./gradlew` wrapper becomes worth reconsidering once the dependency graph grows. The real
+receiver-driving playtest remains hardware-gated (**owner playtests**).
