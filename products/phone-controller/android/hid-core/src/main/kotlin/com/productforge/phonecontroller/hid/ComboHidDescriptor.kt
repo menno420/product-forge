@@ -13,7 +13,11 @@
  *   Report 3 — gamepad: 16 buttons + a hat-switch D-pad + centered X/Y axes. Android
  *              receivers map this through the kernel HID-gamepad convention to
  *              KEYCODE_BUTTON_A…START / AXIS_HAT_X/Y, which is what emulator
- *              controller auto-detection listens for.
+ *              controller auto-detection listens for;
+ *   Report 4 — relative mouse (Slice 5): 3 buttons + X/Y/wheel deltas — the shape
+ *              every PC and Android host accepts from a BT mouse (an Android target
+ *              shows a system pointer the moment it connects). Drives the touchpad
+ *              pad.
  *
  * Bit positions in [GamepadButton] follow the Linux-kernel convention (application
  * collection = Gamepad → buttons map from BTN_SOUTH upward): bit0=A(south),
@@ -40,10 +44,14 @@ object ComboHidDescriptor {
     /** Report ID 3 — gamepad (buttons + hat + X/Y payload). */
     const val REPORT_ID_GAMEPAD: Int = 3
 
+    /** Report ID 4 — relative mouse (buttons + dx/dy/wheel payload). */
+    const val REPORT_ID_MOUSE: Int = 4
+
     /** Payload length per report (Report ID byte excluded — sendReport takes it apart). */
     const val CONSUMER_REPORT_BYTES: Int = 1
     const val KEYBOARD_REPORT_BYTES: Int = 8
     const val GAMEPAD_REPORT_BYTES: Int = 5
+    const val MOUSE_REPORT_BYTES: Int = 4
 
     /**
      * The combo HID report descriptor: three application collections, one per report.
@@ -139,7 +147,47 @@ object ComboHidDescriptor {
         0x95.toByte(), 0x02.toByte(),             //     Report Count (2)
         0x81.toByte(), 0x02.toByte(),             //     Input (Data,Var,Abs) — X, Y
         0xC0.toByte(),                            //   End Collection
+
+        // ---- Report 4: relative mouse (Slice 5 — 3 buttons + X/Y/wheel deltas) ----
+        0x05.toByte(), 0x01.toByte(),             //   Usage Page (Generic Desktop)
+        0x09.toByte(), 0x02.toByte(),             //   Usage (Mouse)
+        0xA1.toByte(), 0x01.toByte(),             //   Collection (Application)
+        0x09.toByte(), 0x01.toByte(),             //     Usage (Pointer)
+        0xA1.toByte(), 0x00.toByte(),             //     Collection (Physical)
+        0x85.toByte(), REPORT_ID_MOUSE.toByte(),  //       Report ID (4)
+        0x05.toByte(), 0x09.toByte(),             //       Usage Page (Button)
+        0x19.toByte(), 0x01.toByte(),             //       Usage Minimum (Button 1)
+        0x29.toByte(), 0x03.toByte(),             //       Usage Maximum (Button 3)
+        0x15.toByte(), 0x00.toByte(),             //       Logical Minimum (0)
+        0x25.toByte(), 0x01.toByte(),             //       Logical Maximum (1)
+        0x75.toByte(), 0x01.toByte(),             //       Report Size (1)
+        0x95.toByte(), 0x03.toByte(),             //       Report Count (3)
+        0x81.toByte(), 0x02.toByte(),             //       Input (Data,Var,Abs) — L/R/M
+        0x75.toByte(), 0x05.toByte(),             //       Report Size (5)
+        0x95.toByte(), 0x01.toByte(),             //       Report Count (1)
+        0x81.toByte(), 0x01.toByte(),             //       Input (Const) — 5-bit pad
+        0x05.toByte(), 0x01.toByte(),             //       Usage Page (Generic Desktop)
+        0x09.toByte(), 0x30.toByte(),             //       Usage (X)
+        0x09.toByte(), 0x31.toByte(),             //       Usage (Y)
+        0x09.toByte(), 0x38.toByte(),             //       Usage (Wheel)
+        0x15.toByte(), 0x81.toByte(),             //       Logical Minimum (-127)
+        0x25.toByte(), 0x7F.toByte(),             //       Logical Maximum (127)
+        0x75.toByte(), 0x08.toByte(),             //       Report Size (8)
+        0x95.toByte(), 0x03.toByte(),             //       Report Count (3)
+        0x81.toByte(), 0x06.toByte(),             //       Input (Data,Var,REL) — dx/dy/wheel
+        0xC0.toByte(),                            //     End Collection (Physical)
+        0xC0.toByte(),                            //   End Collection (Application)
     )
+}
+
+/**
+ * Mouse buttons (Report 4) with their input-report bit positions — the universal
+ * BT-mouse layout: bit0 left, bit1 right, bit2 middle.
+ */
+enum class MouseButton(val bit: Int) {
+    LEFT(0),
+    RIGHT(1),
+    MIDDLE(2),
 }
 
 /**
@@ -190,7 +238,9 @@ enum class DpadDirection { UP, DOWN, LEFT, RIGHT }
 
 /**
  * HID Keyboard/Keypad usage IDs (Report 2) for the keys the built-in layouts send,
- * plus the modifier masks of the report's first byte. Letter usages run a=0x04..z=0x1D.
+ * plus the modifier masks of the report's first byte. Letter usages run a=0x04..z=0x1D
+ * and digits 1..9,0 run 0x1E..0x27 — use [letterUsage]/[digitUsage] for those; the
+ * named constants cover the non-alphanumeric keys the pads bind.
  */
 object KeyUsage {
     const val A = 0x04
@@ -202,6 +252,18 @@ object KeyUsage {
     const val BACKSPACE = 0x2A
     const val TAB = 0x2B
     const val SPACE = 0x2C
+    const val MINUS = 0x2D
+    const val EQUALS = 0x2E
+    const val LEFT_BRACKET = 0x2F
+    const val RIGHT_BRACKET = 0x30
+    const val BACKSLASH = 0x31
+    const val SEMICOLON = 0x33
+    const val APOSTROPHE = 0x34
+    const val GRAVE = 0x35
+    const val COMMA = 0x36
+    const val PERIOD = 0x37
+    const val SLASH = 0x38
+    const val DELETE_FORWARD = 0x4C
     const val ARROW_RIGHT = 0x4F
     const val ARROW_LEFT = 0x50
     const val ARROW_DOWN = 0x51
@@ -211,4 +273,16 @@ object KeyUsage {
     const val MOD_LEFT_CTRL = 0x01
     const val MOD_LEFT_SHIFT = 0x02
     const val MOD_LEFT_ALT = 0x04
+
+    /** Usage for a lowercase letter 'a'..'z' (HID a=0x04 .. z=0x1D). */
+    fun letterUsage(c: Char): Int {
+        require(c in 'a'..'z') { "letterUsage takes 'a'..'z', got '$c'" }
+        return 0x04 + (c - 'a')
+    }
+
+    /** Usage for a digit '0'..'9' (HID 1..9 = 0x1E..0x26, 0 = 0x27). */
+    fun digitUsage(c: Char): Int {
+        require(c in '0'..'9') { "digitUsage takes '0'..'9', got '$c'" }
+        return if (c == '0') 0x27 else 0x1E + (c - '1')
+    }
 }

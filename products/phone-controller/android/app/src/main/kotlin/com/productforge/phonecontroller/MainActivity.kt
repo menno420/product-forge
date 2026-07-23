@@ -1,15 +1,23 @@
 /*
- * MainActivity — the controller (Slice 4).
+ * MainActivity — the controller (Slice 4: usable controller · Slice 5: layouts,
+ * touchpad, keyboard, landscape).
  *
- * The Slice-3 stub only rendered a baseline verdict; this is the usable app the
- * owner directive asks for: request the runtime Bluetooth permissions, run the REAL
- * registerApp() probe, guide pairing (make-discoverable + connect-to-bonded), and
- * drive the combo HID device from three switchable pads (gamepad / keys / media).
+ * Runs the runtime-permission flow, the REAL registerApp() probe, and the pairing
+ * actions (make-discoverable / connect-to-bonded), then drives the combo HID device
+ * from six switchable layouts: Full gamepad · GBA pad · Touchpad · Keyboard ·
+ * Emu keys · Media. Layout choice and touchpad sensitivity persist in activity
+ * prefs.
  *
- * Still plain android.app.Activity + programmatic widgets — no AndroidX — so the
- * dependency graph stays exactly what Slice 3 proved in CI. The verdict shown at
- * the top always comes from the SHARED decision model (:capability-core), fed by
- * the live probe.
+ * Orientation: the manifest opts this activity out of rotation restarts
+ * (configChanges) and onConfigurationChanged rebuilds the view tree by hand —
+ * portrait stacks the chrome above the pad, landscape moves it into a compact side
+ * panel so the pad gets the full height. The point is the TRANSPORT: rotating
+ * mid-game must not tear down the HID registration or drop the host connection,
+ * which an activity recreate would (owner playtest note, 2026-07-23).
+ *
+ * Still plain android.app.Activity + programmatic widgets — no AndroidX. The
+ * verdict shown in the status line always comes from the SHARED decision model
+ * (:capability-core), fed by the live probe.
  */
 package com.productforge.phonecontroller
 
@@ -22,43 +30,72 @@ import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.util.TypedValue
+import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.Spinner
 import android.widget.TextView
 import com.productforge.phonecontroller.capability.Verdict
 import com.productforge.phonecontroller.hid.DpadDirection
 import com.productforge.phonecontroller.hid.GamepadButton
 import com.productforge.phonecontroller.hid.MediaButton
+import com.productforge.phonecontroller.hid.MouseButton
 import com.productforge.phonecontroller.transport.BluetoothHidDeviceTransport
 import com.productforge.phonecontroller.transport.HidTransportListener
 import com.productforge.phonecontroller.ui.ControllerPads
 import com.productforge.phonecontroller.ui.PadHost
+import com.productforge.phonecontroller.ui.TouchpadConfig
 
 class MainActivity : Activity(), HidTransportListener, PadHost {
 
     private lateinit var statusView: TextView
     private lateinit var detailView: TextView
     private lateinit var padContainer: FrameLayout
-    private lateinit var tabGamepad: Button
-    private lateinit var tabKeys: Button
-    private lateinit var tabMedia: Button
 
     private var transport: BluetoothHidDeviceTransport? = null
+
+    private var currentPad = Pad.FULL_GAMEPAD
+    private var lastStatus: CharSequence = ""
+    private var lastDetail: CharSequence = ""
+
+    private val touchpadConfig = object : TouchpadConfig {
+        override var sensitivity: Float
+            get() = getPreferences(Context.MODE_PRIVATE).getFloat(PREF_SENSITIVITY, 1.0f)
+            set(value) {
+                getPreferences(Context.MODE_PRIVATE).edit().putFloat(PREF_SENSITIVITY, value).apply()
+            }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // A controller with a sleeping screen is a dead controller.
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
+        currentPad = Pad.entries.getOrElse(
+            getPreferences(Context.MODE_PRIVATE).getInt(PREF_LAYOUT, Pad.FULL_GAMEPAD.ordinal),
+        ) { Pad.FULL_GAMEPAD }
+
+        lastStatus = getString(R.string.probing)
         buildUi()
-        showPad(Pad.GAMEPAD)
         ensurePermissionsThenStart()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        // Rotation: rebuild the chrome for the new orientation WITHOUT recreating the
+        // activity — the transport (and the live HID connection) must survive.
+        super.onConfigurationChanged(newConfig)
+        buildUi()
     }
 
     override fun onDestroy() {
@@ -76,7 +113,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                 Manifest.permission.BLUETOOTH_ADVERTISE,
             ).filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
             if (missing.isNotEmpty()) {
-                statusView.text = getString(R.string.requesting_permissions)
+                setStatus(getString(R.string.requesting_permissions))
                 requestPermissions(missing.toTypedArray(), RC_BLUETOOTH)
                 return
             }
@@ -93,14 +130,14 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
             startTransport()
         } else {
-            statusView.text = getString(R.string.permission_denied)
+            setStatus(getString(R.string.permission_denied))
         }
     }
 
     private fun startTransport() {
         transport?.stop()
-        statusView.text = getString(R.string.probing)
-        detailView.text = ""
+        setStatus(getString(R.string.probing))
+        setDetail("")
         val adapter = (getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
         transport = BluetoothHidDeviceTransport(applicationContext, adapter, this).also { it.start() }
     }
@@ -113,14 +150,14 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                 Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
                     .putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, DISCOVERABLE_SECONDS),
             )
-        }.onFailure { detailView.text = getString(R.string.error_fmt, it.message ?: "discoverable request failed") }
+        }.onFailure { setDetail(getString(R.string.error_fmt, it.message ?: "discoverable request failed")) }
     }
 
     private fun pickBondedAndConnect() {
         val t = transport ?: return
         val devices = t.bondedHosts()
         if (devices.isEmpty()) {
-            detailView.text = getString(R.string.no_bonded_devices)
+            setDetail(getString(R.string.no_bonded_devices))
             return
         }
         val names = devices.map { d ->
@@ -129,7 +166,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         AlertDialog.Builder(this)
             .setTitle(R.string.connect_dialog_title)
             .setItems(names) { _, which ->
-                detailView.text = getString(R.string.connecting_fmt, names[which])
+                setDetail(getString(R.string.connecting_fmt, names[which]))
                 t.connectTo(devices[which])
             }
             .show()
@@ -139,33 +176,31 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
 
     override fun onVerdict(verdict: Verdict) {
         runOnUiThread {
-            statusView.text = getString(R.string.verdict_fmt, verdict.code.name, verdict.headline)
-            detailView.text = if (verdict.coreLoopAvailable) "" else verdict.reason
+            setStatus(getString(R.string.verdict_fmt, verdict.code.name, verdict.headline))
+            setDetail(if (verdict.coreLoopAvailable) "" else verdict.reason)
         }
     }
 
     override fun onRegistered() {
-        runOnUiThread {
-            statusView.text = getString(R.string.registered_hint)
-        }
+        runOnUiThread { setStatus(getString(R.string.registered_hint)) }
     }
 
     override fun onConnectionStateChanged(device: BluetoothDevice?, connected: Boolean) {
         runOnUiThread {
-            statusView.text = if (connected) {
+            if (connected) {
                 val name = transport?.connectedHostName()
                     ?: runCatching { device?.name }.getOrNull()
                     ?: device?.address
                     ?: getString(R.string.unknown_device)
-                getString(R.string.connected_fmt, name)
+                setStatus(getString(R.string.connected_fmt, name))
             } else {
-                getString(R.string.disconnected_hint)
+                setStatus(getString(R.string.disconnected_hint))
             }
         }
     }
 
     override fun onError(message: String) {
-        runOnUiThread { detailView.text = getString(R.string.error_fmt, message) }
+        runOnUiThread { setDetail(getString(R.string.error_fmt, message)) }
     }
 
     // --- PadHost (UI -> transport) ----------------------------------------------------
@@ -190,18 +225,46 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         transport?.sendMediaButton(button)
     }
 
+    override fun onMouseMove(dx: Int, dy: Int) {
+        transport?.mouseMove(dx, dy)
+    }
+
+    override fun onMouseScroll(notches: Int) {
+        transport?.mouseScroll(notches)
+    }
+
+    override fun onMouseButton(button: MouseButton, down: Boolean) {
+        transport?.mouseButton(button, down)
+    }
+
+    override fun onMouseClick(button: MouseButton) {
+        transport?.mouseClick(button)
+    }
+
     // --- UI scaffolding ----------------------------------------------------------------
 
-    private enum class Pad { GAMEPAD, KEYS, MEDIA }
+    private enum class Pad(val labelRes: Int) {
+        FULL_GAMEPAD(R.string.layout_full_gamepad),
+        GBA(R.string.layout_gba),
+        TOUCHPAD(R.string.layout_touchpad),
+        KEYBOARD(R.string.layout_keyboard),
+        EMU_KEYS(R.string.layout_emu_keys),
+        MEDIA(R.string.layout_media),
+    }
 
     private fun showPad(pad: Pad) {
-        tabGamepad.isEnabled = pad != Pad.GAMEPAD
-        tabKeys.isEnabled = pad != Pad.KEYS
-        tabMedia.isEnabled = pad != Pad.MEDIA
+        currentPad = pad
+        getPreferences(Context.MODE_PRIVATE).edit().putInt(PREF_LAYOUT, pad.ordinal).apply()
         padContainer.removeAllViews()
         val view: View = when (pad) {
-            Pad.GAMEPAD -> ControllerPads.buildGamepadPad(this, this)
-            Pad.KEYS -> ControllerPads.buildKeysPad(this, this)
+            Pad.FULL_GAMEPAD -> ControllerPads.buildGamepadPad(this, this)
+            Pad.GBA -> ControllerPads.buildGbaPad(this, this)
+            Pad.TOUCHPAD -> ControllerPads.buildTouchpadPad(
+                this, this, touchpadConfig,
+                getString(R.string.touchpad_hint), getString(R.string.sensitivity),
+            )
+            Pad.KEYBOARD -> ControllerPads.buildKeyboardPad(this, this)
+            Pad.EMU_KEYS -> ControllerPads.buildEmuKeysPad(this, this)
             Pad.MEDIA -> ControllerPads.buildMediaPad(this, this)
         }
         padContainer.addView(
@@ -213,91 +276,132 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         )
     }
 
+    private fun setStatus(text: CharSequence) {
+        lastStatus = text
+        statusView.text = text
+    }
+
+    private fun setDetail(text: CharSequence) {
+        lastDetail = text
+        detailView.text = text
+    }
+
     private fun dp(v: Int): Int = TypedValue.applyDimension(
         TypedValue.COMPLEX_UNIT_DIP, v.toFloat(), resources.displayMetrics,
     ).toInt()
 
     private fun buildUi() {
         statusView = TextView(this).apply {
-            textSize = 16f
-            setPadding(dp(16), dp(12), dp(16), dp(4))
-            text = getString(R.string.probing)
+            textSize = 15f
+            setPadding(dp(12), dp(8), dp(12), dp(2))
+            text = lastStatus
         }
         detailView = TextView(this).apply {
+            textSize = 12f
+            setPadding(dp(12), 0, dp(12), dp(2))
+            text = lastDetail
+        }
+        padContainer = FrameLayout(this).apply { setPadding(dp(6), 0, dp(6), dp(6)) }
+
+        val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        setContentView(if (landscape) buildLandscapeRoot() else buildPortraitRoot())
+        showPad(currentPad)
+    }
+
+    private fun actionButton(labelRes: Int, onClick: () -> Unit): Button =
+        Button(this).apply {
+            text = getString(labelRes)
+            isAllCaps = false
             textSize = 13f
-            setPadding(dp(16), 0, dp(16), dp(4))
+            setOnClickListener { onClick() }
         }
 
+    private fun layoutSpinner(): Spinner = Spinner(this).apply {
+        adapter = ArrayAdapter(
+            this@MainActivity,
+            android.R.layout.simple_spinner_dropdown_item,
+            Pad.entries.map { getString(it.labelRes) },
+        )
+        setSelection(currentPad.ordinal, false)
+        onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val pad = Pad.entries[position]
+                if (pad != currentPad) showPad(pad)
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+    }
+
+    /** Portrait: chrome stacked above a full-width pad. */
+    private fun buildPortraitRoot(): View {
         val actionRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(dp(8), 0, dp(8), 0)
-            addView(
-                Button(context).apply {
-                    text = getString(R.string.make_discoverable)
-                    isAllCaps = false
-                    setOnClickListener { makeDiscoverable() }
-                },
-                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
-            )
-            addView(
-                Button(context).apply {
-                    text = getString(R.string.connect_bonded)
-                    isAllCaps = false
-                    setOnClickListener { pickBondedAndConnect() }
-                },
-                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
-            )
-            addView(
-                Button(context).apply {
-                    text = getString(R.string.reprobe)
-                    isAllCaps = false
-                    setOnClickListener { ensurePermissionsThenStart() }
-                },
-                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
-            )
-        }
-
-        tabGamepad = Button(this).apply {
-            text = getString(R.string.tab_gamepad)
-            isAllCaps = false
-            setOnClickListener { showPad(Pad.GAMEPAD) }
-        }
-        tabKeys = Button(this).apply {
-            text = getString(R.string.tab_keys)
-            isAllCaps = false
-            setOnClickListener { showPad(Pad.KEYS) }
-        }
-        tabMedia = Button(this).apply {
-            text = getString(R.string.tab_media)
-            isAllCaps = false
-            setOnClickListener { showPad(Pad.MEDIA) }
-        }
-        val tabRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(dp(8), 0, dp(8), 0)
-            listOf(tabGamepad, tabKeys, tabMedia).forEach {
+            setPadding(dp(6), 0, dp(6), 0)
+            listOf(
+                actionButton(R.string.make_discoverable) { makeDiscoverable() },
+                actionButton(R.string.connect_bonded) { pickBondedAndConnect() },
+                actionButton(R.string.reprobe) { ensurePermissionsThenStart() },
+            ).forEach {
                 addView(it, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
             }
         }
-
-        padContainer = FrameLayout(this).apply { setPadding(dp(8), 0, dp(8), dp(8)) }
-
-        val root = LinearLayout(this).apply {
+        val spinnerRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), 0, dp(12), 0)
+            addView(
+                TextView(this@MainActivity).apply {
+                    text = getString(R.string.layout_label)
+                    textSize = 13f
+                },
+            )
+            addView(
+                layoutSpinner(),
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
+            )
+        }
+        return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(statusView)
             addView(detailView)
             addView(actionRow)
-            addView(tabRow)
+            addView(spinnerRow)
+            addView(padContainer, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        }
+    }
+
+    /** Landscape: compact scrollable side panel, pad gets the full height. */
+    private fun buildLandscapeRoot(): View {
+        val panelContent = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(statusView)
+            addView(detailView)
+            addView(layoutSpinner())
+            addView(actionButton(R.string.make_discoverable) { makeDiscoverable() })
+            addView(actionButton(R.string.connect_bonded) { pickBondedAndConnect() })
+            addView(actionButton(R.string.reprobe) { ensurePermissionsThenStart() })
+        }
+        val panel = ScrollView(this).apply {
+            isFillViewport = true
             addView(
-                padContainer,
-                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f),
+                panelContent,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ),
             )
         }
-        setContentView(root)
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(panel, LinearLayout.LayoutParams(dp(190), ViewGroup.LayoutParams.MATCH_PARENT))
+            addView(padContainer, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
+        }
     }
 
     private companion object {
         const val RC_BLUETOOTH = 41
         const val DISCOVERABLE_SECONDS = 120
+        const val PREF_LAYOUT = "layout"
+        const val PREF_SENSITIVITY = "touchpad_sensitivity"
     }
 }

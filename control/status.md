@@ -1,11 +1,22 @@
 # product-forge · status
 
-updated: 2026-07-23T19:51:56Z
-phase: phone-controller Slice 4 SHIPPED — usable controller app + downloadable-APK lanes; physical playtest pending
+updated: 2026-07-23T21:31:38Z
+phase: phone-controller Slice 5 SHIPPED — touchpad-mouse + full keyboard + layout presets + slide-over pads + landscape (v0.5.0)
 lane: builder (phone-controller) · owner-live session 2026-07-23
 health: green
 
 ## This session (2026-07-23, owner-live directive)
+**Slice 5 SHIPPED (same owner-live conversation):** owner playtest of v0.4.0 against a
+laptop succeeded (pairing + keyboard + emu-keys working; gamepad reports confirmed on a
+HID tester — emulator-side binding is per-emulator config). Live feature asks delivered
+as v0.5.0: **Report-4 relative mouse + Touchpad pad** (drag/tap/two-finger gestures,
+sensitivity slider), **full QWERTY keyboard pad**, **layout presets** (Full gamepad ·
+GBA pad · Touchpad · Keyboard · Emu keys · Media, persisted), **slide-over game pads**
+(D-pad glide without lifting), **landscape layout + rotation-safe connection**
+(configChanges — rotating no longer drops the HID registration). Verified pre-push:
+36/36 pure-JVM tests, app compiles vs android.jar; card:
+`.sessions/2026-07-23-phone-controller-slice5-touchpad-keyboard-layouts.md`.
+
 Owner's live instruction: finish the controller app as a **downloadable APK** usable as
 a Bluetooth-HID input device for other Android devices (emulator use case). Delivered
 as Slice 4 — session card `.sessions/2026-07-23-phone-controller-slice4-apk.md`:

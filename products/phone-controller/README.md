@@ -18,13 +18,15 @@ target. Based on the Ideas-Lab plan
 
 ## State
 
-**beta · usable controller, hardware playtest pending.** Slices 1–4 are built and
-CI-proven: the capability verdict engine (portable Python + lockstep Kotlin port), the
-real `BluetoothHidDevice` transport, a **combo HID device** (keyboard + gamepad + media
-remote), a working controller UI (permission flow, pairing actions, three hold-capable
-pads), and a release pipeline that publishes a signed, installable APK. What CI cannot
-prove is the physical end-to-end (two real devices over the air) — that is the
-remaining playtest step, and the app's own verdict screen reports honestly per device.
+**beta · field-verified against a real host.** Slices 1–5 are built and CI-proven: the
+capability verdict engine (portable Python + lockstep Kotlin port), the real
+`BluetoothHidDevice` transport, a **combo HID device** (keyboard + gamepad + mouse +
+media remote), the controller UI (six layouts, slide-over game pads, landscape mode,
+rotation-safe connection), and a release pipeline that publishes a signed, installable
+APK. Owner playtest 2026-07-23 (v0.4.0, laptop host): pairing ✓, keyboard input ✓,
+GBA emulator driven via keys ✓, gamepad reports confirmed live on a HID gamepad
+tester ✓ (emulator-side controller *binding* is per-emulator configuration — map the
+buttons once in its input settings).
 
 ## Get the app (Android 9+)
 
@@ -50,19 +52,27 @@ browser/files app when prompted (normal sideload flow — this app is not on a s
 3. Tap **Discoverable**, then on the **target** device: *Settings → Bluetooth → pair
    new device* → pair with **“Phone Controller”**. (Already paired once? Just tap
    **Connect…** and pick the device.)
-4. When the status reads **Connected — controller is live**, pick a pad:
-   - **Gamepad** — D-pad + A/B/X/Y + L1/R1 + Select/Start. The target Android sees a
-     standard HID gamepad (`KEYCODE_BUTTON_A`…, D-pad from the hat switch) — emulators
-     auto-detect it as a controller.
-   - **Keys** — arrows, Z/X/A/S, Enter/Space/Shift/Esc/Tab as a real BT keyboard (the
-     classic emulator default binds; also drives TV UIs, slide decks, anything
-     keyboard-driven).
+4. When the status reads **Connected — controller is live**, pick a layout (the
+   spinner; your choice persists):
+   - **Full gamepad** — D-pad + A/B/X/Y + L1/R1 + Select/Start. The target sees a
+     standard HID gamepad (`KEYCODE_BUTTON_A`…, D-pad from the hat switch).
+   - **GBA pad** — D-pad + B/A + L/R + Select/Start in the console's arrangement.
+   - **Touchpad** — drag to move the host's pointer (on an Android target a system
+     cursor appears), tap = click, two-finger tap = right-click, two-finger drag =
+     scroll (natural direction), hold LEFT + drag = drag-select; speed slider below.
+   - **Keyboard** — full QWERTY with digits, punctuation, arrows and hold-capable
+     Shift/Ctrl/Alt (two-thumb chords); held keys auto-repeat via the host OS.
+   - **Emu keys** — arrows, Z/X/A/S, Enter/Space/Shift/Esc/Tab (the classic emulator
+     default binds).
    - **Media** — play/pause, next/prev, stop, volume, mute (the Slice-2 remote).
-   Buttons **hold**: press-and-hold walks your character; it is a held HID report, not
-   repeated taps.
+   Buttons **hold** (a held HID report, not repeated taps), and on the game pads you
+   can **slide between buttons without lifting** — glide across the D-pad like on a
+   real controller. Landscape is fully supported (side panel + full-height pad), and
+   rotating does not drop the connection.
 5. **In the emulator** (e.g. RetroArch): Settings → Input → Port 1 Controls → map each
-   button by pressing it on the phone — or use the Keys pad with the emulator's default
-   keyboard binds and map nothing at all.
+   button by pressing it on the phone — or use the Emu-keys pad with the emulator's
+   default keyboard binds and map nothing at all. (Emulators generally don't
+   auto-bind an unknown gamepad; one manual mapping pass is normal and persists.)
 
 Receiver compatibility beyond Android (PCs, TVs): `./run.sh` prints the Slice-1
 sourced matrix; its first row (*Android phone/tablet: keyboard/mouse/gamepad — yes,
@@ -106,15 +116,17 @@ products/phone-controller/
 
 ## Build ladder / next slices (from the idea doc)
 
-Slices 1–4 done: scaffold → working core → tests → README → **release artifact** (the
-APK release lane). Remaining, in the idea doc's order:
+Slices 1–5 done: scaffold → working core → tests → README → release artifact →
+**mouse + full keyboard + layout presets + slide-over + landscape** (Slice 5, owner
+feature asks 2026-07-23). Remaining, in the idea doc's order:
 
-5. **Customizable layout editor** (button grid → HID keycodes) — the differentiator:
-   no mainstream app is *both* serverless true-BT-HID *and* fully customizable.
-6. Profiles (save / load / switch per target). 7. Analog stick on the gamepad's X/Y
-   (the descriptor already carries centered axes). 8. Foreground volume-key-as-input
-   mapping. 9. On-device latency measurement. BLE-HOGP fallback transport for
-   `BLE_HOGP_FALLBACK`-verdict devices.
+6. **Customizable layout editor** (button grid → HID keycodes) — the differentiator:
+   no mainstream app is *both* serverless true-BT-HID *and* fully customizable; the
+   Slice-5 preset registry is its forerunner.
+7. Profiles (save / load / switch per target). 8. Analog stick on the gamepad's X/Y
+   (the descriptor already carries centered axes). 9. Foreground volume-key-as-input
+   mapping. 10. On-device latency measurement. Scroll-direction invert toggle.
+   BLE-HOGP fallback transport for `BLE_HOGP_FALLBACK`-verdict devices.
 
 `iOS-as-controller` is deferred (network companion-receiver only); background
 hardware-button capture is blocked by platform policy. See the idea doc for sources and
