@@ -1,97 +1,122 @@
-# phone-controller — Android side (Slice 2)
+# phone-controller — Android side
 
-The on-device layer of the phone-as-a-Bluetooth-controller product. It performs the
-**real** Classic-BT-HID probe and drives a fixed media-remote HID device — and it
-consumes the **same** support-verdict decision model the portable Python core (Slice 1)
-defines.
+The on-device layer of the phone-as-a-Bluetooth-controller product: the **real**
+Classic-BT-HID probe + transport, the combo HID device (keyboard / gamepad / media
+remote), and the controller UI. It consumes the **same** support-verdict decision
+model the portable Python core (Slice 1) defines.
 
 Idea: `menno420/idea-engine` →
-`ideas/product-forge/bt-controller-plan-2026-07-17.md`. Slice 1 (merged, PR #27) is the
-portable Python verdict engine at `products/phone-controller/src/`.
+`ideas/product-forge/bt-controller-plan-2026-07-17.md`. Slice history: #27 (Python
+verdict core) · #28 (Kotlin port + transport skeleton) · #29/#31/#32 (Gradle/CI
+wiring) · Slice 4 (combo HID + controller UI + release lane).
 
 ## Layout
 
 ```
 android/
-  settings.gradle.kts          # includes ONLY :capability-core (SDK-free, CI-built)
-  capability-core/             # pure-JVM Kotlin — the buildable, unit-tested module
-    build.gradle.kts
-    src/main/kotlin/.../capability/Capability.kt      # Kotlin port of capability.py
-    src/test/kotlin/.../capability/CapabilityTest.kt  # lockstep tests (JVM, no SDK)
-  app/                         # Android app module — assembleDebug (needs the Android SDK)
-    build.gradle.kts           # AGP config (com.android.application 8.5.2)
+  settings.gradle.kts          # :capability-core + :hid-core always; :app SDK-gated
+  capability-core/             # pure-JVM verdict engine port (lockstep w/ Python core)
+    src/main/kotlin/.../capability/Capability.kt
+    src/test/kotlin/.../capability/CapabilityTest.kt
+  hid-core/                    # pure-JVM HID report model (Slice 4)
+    src/main/kotlin/.../hid/ComboHidDescriptor.kt   # descriptor + button/usage constants
+    src/main/kotlin/.../hid/InputStates.kt          # KeyboardState / GamepadState builders
+    src/test/kotlin/.../hid/ComboHidDescriptorTest.kt
+  app/                         # Android app module (needs the Android SDK)
+    build.gradle.kts           # AGP 8.5.2 · versioning · env-driven release signing
     src/main/AndroidManifest.xml
-    src/main/res/values/strings.xml                                # capability-screen strings
-    src/main/kotlin/.../MainActivity.kt                            # capability-screen entry point
-    src/main/kotlin/.../transport/BluetoothHidDeviceTransport.kt   # the real transport
-    src/main/kotlin/.../transport/MediaRemoteHidDescriptor.kt      # fixed HID descriptor
+    src/main/res/values/strings.xml
+    src/main/kotlin/.../MainActivity.kt             # permission flow + status + pad host
+    src/main/kotlin/.../ui/ControllerPads.kt        # gamepad / keys / media pads
+    src/main/kotlin/.../transport/BluetoothHidDeviceTransport.kt  # the real transport
 ```
+
+## The combo HID device (what a receiver sees)
+
+One SDP record (`SUBCLASS1_COMBO`, name **“Phone Controller”**) with three reports:
+
+| Report | Collection | Payload | Drives |
+|---|---|---|---|
+| 1 | Consumer Control | 1 byte (7 button bits + pad) | media remote (Slice-2 layout, unchanged) |
+| 2 | Keyboard | 8 bytes (modifiers + reserved + 6-key array) | Keys pad — standard BT keyboard |
+| 3 | Gamepad | 5 bytes (16 buttons, hat D-pad, X/Y) | Gamepad pad — auto-detected controller |
+
+Gamepad button bits follow the Linux-kernel convention (bit0=A/south … bit11=Start,
+bits 2/5 skipped), so an Android receiver yields `KEYCODE_BUTTON_A/B/X/Y/L1/R1/
+SELECT/START` and D-pad key events (synthesized from the hat axes) with no custom
+keylayout. X/Y ride along centered until an analog-stick slice. The wire format is
+pinned by `hid-core`'s tests; if an exotic host rejects the combo descriptor, bisect
+by dropping Report 3 first.
 
 ## The decision model is shared, not duplicated
 
-`capability-core/Capability.kt` is a faithful, behaviour-for-behaviour port of
-`../src/capability.py`: same verdict codes
-(`SUPPORTED_CLASSIC_HID` / `BLE_HOGP_FALLBACK` / `OEM_DISABLED` / `OS_TOO_OLD` /
-`IOS_WALLED` / `UNSUPPORTED_PLATFORM`), same `ProbeInput` fields, same branch order.
-`BluetoothHidDeviceTransport.probeAndEvaluate()` builds a `ProbeInput` from the live
-runtime facts (`Build.VERSION.SDK_INT`, whether `registerApp()` took, BLE-peripheral
-capability) and calls `evaluate()` — so the phone reaches the same verdict the Python
-core would. The Python suite remains the canonical decision table; the Kotlin tests
-prove the port stays in lockstep.
+`capability-core/Capability.kt` stays a faithful port of `../src/capability.py` (same
+verdict codes, same branch order; the Python suite is the canonical decision table).
+`BluetoothHidDeviceTransport` feeds every live probe outcome — `registerApp()`
+accepted/rejected, BLE-peripheral capability — through the shared `evaluate()`, so
+the phone reaches the same verdict the Python core would, including `OEM_DISABLED`
+when an API-28+ phone ships with the HID device role compiled out.
 
-## What the transport does (Slice 2 skeleton)
-
-`BluetoothHidDeviceTransport`:
+## What the transport does (Slice 4)
 
 1. binds the `HID_DEVICE` profile proxy — `BluetoothAdapter.getProfileProxy(...)`;
-2. calls `registerApp(...)` with a fixed media-remote SDP record + HID report
-   descriptor — **this is the runtime OEM-flag probe** (an API-28+ phone can still be
-   rejected here, which is exactly the engine's `OEM_DISABLED` case);
-3. sends input reports on the HID interrupt channel — `sendReport(...)`;
-4. feeds the probe result into the shared `evaluate()` decision model.
-
-The HID device is a single Consumer-Control "media remote" (play/pause, next, prev,
-mute, vol ±, stop) — see `MediaRemoteHidDescriptor`. Customisable layouts, pairing UI,
-reconnection, and the BLE-HOGP fallback are **Slice 3+**.
+2. one `registerApp(...)` with the combo SDP record + descriptor — **the runtime
+   OEM-flag probe**;
+3. hold-capable input APIs — `key`/`modifier` (Report 2), `gamepadButton`/`dpad`
+   (Report 3), `sendMediaButton` (Report 1, tap pair) — all `sendReport(...)` on the
+   interrupt channel via the `hid-core` report builders;
+4. `connectTo(bondedDevice)` / `bondedHosts()` so the phone can also initiate the
+   connection; all inputs auto-release on host disconnect and on `stop()`;
+5. `SecurityException` (missing runtime permission) surfaces as a transport error.
 
 ## Building & testing
 
-The SDK-free verdict port needs no Android toolchain:
+SDK-free lanes (no Android toolchain):
 
 ```bash
 cd products/phone-controller/android
-gradle :capability-core:test        # pure-JVM Kotlin unit tests, no Android SDK
+gradle :capability-core:test :hid-core:test
 ```
 
-The `app/` module is wired into the build (Slice 3) but `include(":app")` is **gated on
-Android-SDK presence** — a bare `:capability-core:test` never configures AGP, so the
-verdict lane stays SDK-free. With an Android SDK provisioned (`ANDROID_HOME` set, e.g. by
-`android-actions/setup-android`):
+The app (needs an Android SDK — `ANDROID_HOME` set, or a `local.properties`):
 
 ```bash
-gradle :app:assembleDebug           # builds the debug APK (needs the Android SDK + AGP)
+gradle :app:assembleDebug      # debug APK (CI: assemble-app job, uploads the artifact)
+gradle :app:assembleRelease    # release APK; signing is env-driven (below)
 ```
 
-The CI lane lives in `.github/workflows/android-ci.yml`. Its `assembleDebug` job is added
-in a companion, owner-gated workflow PR — the repo's `merge-on-green` parks any
-`.github/workflows/**` change for owner review.
+`include(":app")` stays **gated on Android-SDK presence** (Slice-3 decide-and-flag):
+a bare pure-JVM test run never configures AGP, so the SDK-free lanes stay green
+everywhere.
+
+## Release signing (env-driven; keystore never committed)
+
+`app/build.gradle.kts` reads `PC_RELEASE_KEYSTORE` (PKCS12 path),
+`PC_RELEASE_KEYSTORE_PASSWORD`, optional `PC_RELEASE_KEY_ALIAS` (default
+`phone-controller`) / `PC_RELEASE_KEY_PASSWORD`. Present → `assembleRelease` is
+signed with that keystore; absent → falls back to debug signing (still installable).
+`.github/workflows/android-release.yml` materializes the keystore from the repo
+secrets `PC_RELEASE_KEYSTORE_B64` / `PC_RELEASE_KEYSTORE_PASSWORD` (stable signature
+→ in-place updates) or generates an ephemeral one per run, then attaches
+`phone-controller-<version>.apk` + sha256 to the GitHub Release for the
+`phone-controller-v*` tag.
 
 ## Decide-and-flag choices
 
-- **`include(":app")` gated on Android-SDK presence.** Applying AGP needs a resolvable
-  SDK; configuring `:app` without one fails the *whole* build (Gradle configures every
-  included project), which would red the SDK-free `:capability-core:test` lane. Gating the
-  include on `ANDROID_HOME` / `ANDROID_SDK_ROOT` / `local.properties` keeps the verdict
-  lane Android-toolchain-free while the assembleDebug job (which provisions the SDK) gets
-  the app module. *(Reversible — drop the guard once every lane provisions the SDK.)*
-- **Two CI jobs, kept split.** `:capability-core:test` stays a fast, SDK-free job that
-  tests the load-bearing decision model directly; `:app:assembleDebug` is a separate job
-  that provisions the Android SDK and proves the real transport compiles. The transport
-  can't be unit-tested without hardware, so assembleDebug proves compilation, not runtime.
-- **Stub `MainActivity`, no AndroidX.** Plain `android.app.Activity` + a programmatic
-  `TextView` — the smallest entry point that compiles the AGP build against the shared
-  decision model and the real transport. The customisable controller UI is a later slice.
-  *(Reversible.)*
-- **Kotlin 2.0.21 + AGP 8.5.2 + Gradle 8.x, no committed wrapper jar / no committed SDK.**
-  CI provides Gradle via `gradle/actions/setup-gradle` and the SDK via
-  `android-actions/setup-android`, avoiding a binary blob in the repo. *(Reversible.)*
+- **Combo descriptor over media-only** *(Slice 4)* — keyboard + gamepad are what the
+  emulator use case consumes; Report 1 keeps the Slice-2 media bytes verbatim so
+  existing receivers are unaffected. Reversible per-report.
+- **D-pad as hat switch + neutral X/Y** *(Slice 4)* — Android receivers synthesize
+  DPAD key events from hat axes and emulators map either; the axes are already in the
+  descriptor for the analog slice.
+- **Pure-JVM `hid-core`** *(Slice 4)* — descriptor bytes + report bit-math are the
+  load-bearing wire format, so they live where CI unit-tests them SDK-free, exactly
+  like the verdict engine.
+- **`include(":app")` gated on Android-SDK presence** *(Slice 3)* — unchanged.
+- **Two CI jobs, kept split** *(Slice 3)* — unchanged; assemble-app now also uploads
+  the debug-APK artifact.
+- **No AndroidX** *(Slice 3→4)* — plain Activity + programmatic widgets keep the
+  dependency graph minimal; revisit when the layout-editor slice needs real UI kit.
+- **Kotlin 2.0.21 + AGP 8.5.2 + Gradle 8.x, no committed wrapper/SDK** — unchanged;
+  CI provisions toolchains (`gradle/actions/setup-gradle`,
+  `android-actions/setup-android`).

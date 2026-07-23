@@ -41,6 +41,7 @@ dependencyResolutionManagement {
 rootProject.name = "phone-controller-android"
 
 include(":capability-core")
+include(":hid-core")
 
 val androidSdkAvailable =
     System.getenv("ANDROID_HOME") != null ||

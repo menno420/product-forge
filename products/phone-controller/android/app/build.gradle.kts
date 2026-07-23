@@ -15,6 +15,17 @@ plugins {
     kotlin("android") version "2.0.21"
 }
 
+// Release signing is env-driven so CI can sign from repo secrets while the keystore
+// itself is never committed: PC_RELEASE_KEYSTORE (path), PC_RELEASE_KEYSTORE_PASSWORD,
+// optional PC_RELEASE_KEY_ALIAS / PC_RELEASE_KEY_PASSWORD. With no env present,
+// assembleRelease falls back to the debug signing config — the APK is then still
+// installable (sideload-quality), just not stable-signature across machines.
+val releaseStoreFile: String? = System.getenv("PC_RELEASE_KEYSTORE")
+val releaseStorePassword: String? = System.getenv("PC_RELEASE_KEYSTORE_PASSWORD")
+val releaseKeyAlias: String = System.getenv("PC_RELEASE_KEY_ALIAS") ?: "phone-controller"
+val releaseKeyPassword: String? = System.getenv("PC_RELEASE_KEY_PASSWORD") ?: releaseStorePassword
+val hasReleaseKeystore = releaseStoreFile != null && releaseStorePassword != null
+
 android {
     namespace = "com.productforge.phonecontroller"
     compileSdk = 34
@@ -23,15 +34,35 @@ android {
         applicationId = "com.productforge.phonecontroller"
         minSdk = 28          // BluetoothHidDevice requires API 28 (Android 9)
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.3.0-slice3"
+        versionCode = 2
+        versionName = "0.4.0"
+    }
+
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+                storeType = "PKCS12"
+            }
+        }
     }
 
     buildTypes {
-        // Debug is the only variant Slice 3 needs (assembleDebug in CI). Release
-        // signing/minification is a later, owner-facing slice.
         getByName("debug") {
             isMinifyEnabled = false
+        }
+        // Release stays unminified (no shrinker rules to maintain yet); its value over
+        // debug is the stable, secrets-provided signature for in-place updates.
+        getByName("release") {
+            isMinifyEnabled = false
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 
@@ -43,6 +74,8 @@ android {
 }
 
 dependencies {
-    // The Android layer consumes the SAME shared decision model the Python core defines.
+    // The Android layer consumes the SAME shared decision model the Python core
+    // defines, and the pure-JVM HID report model (descriptor + report builders).
     implementation(project(":capability-core"))
+    implementation(project(":hid-core"))
 }
