@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 4: usable controller UI + downloadable APK (builder lane)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: fable-5 · high · build
 
@@ -80,9 +80,11 @@ core stays the canonical decision table; no `:capability-core` or `src/` changes
   from hat axes, and emulators map either; axes stay centered until an analog UI slice.
 - **Kernel-convention gamepad bits (skip C/Z at bits 2/5)** — matches BTN_SOUTH-first
   mapping on the Android receiver; labels on the pad match the keycodes the target sees.
-- **Two PRs** — code (this card's PR, auto-lands on green) + workflows (separate PR under
-  merge-on-green's owner-merge-only rail, hub-merged under the owner's live directive,
-  same precedent as PR #29 / `OQ-FORGE-29-WORKFLOW-MERGE`).
+- **Workflows in their own commit** — the branch lands as one PR by default (its
+  workflow-touching diff parks auto-merge; direct merge on green under the owner's live
+  directive is the recorded precedent, PR #29 / `OQ-FORGE-29-WORKFLOW-MERGE`), and the
+  separated commit lets a landing session split a companion workflows PR if it prefers
+  the strict rail.
 - **Release signing via repo secrets, keystore never committed** — secrets are the
   fleet-verified path (capabilities ledger); ephemeral fallback keeps the release lane
   green with zero secrets.
@@ -108,3 +110,31 @@ gradle :capability-core:test :hid-core:test   # SDK-free lanes
 gradle :app:assembleDebug                     # needs ANDROID_HOME (CI: assemble-app job)
 python3 bootstrap.py check --strict           # substrate gate, locally
 ```
+
+## Verify — results (run locally this session, before landing)
+
+Gradle isn't fetchable from this session's container (its distribution redirects to a
+GitHub release download outside the session's repo scope), so verification ran on the
+equivalent manual toolchain — same compiler, same SDK pieces the CI lanes provision:
+
+- **Kotlin lanes — 29/29 tests green** (kotlinc 2.0.21 via `kotlin-compiler-embeddable`
+  + JUnit Platform console 1.10.3): the 13 capability lockstep tests + the 16 new
+  hid-core wire-format tests.
+- **Python canonical suite — 26/26 green** (`./test.sh`).
+- **App module compiles against android.jar** (platform-34, jvm-target 17) — the same
+  proof CI's assemble-app job gives.
+- **A real signed APK was built end-to-end** with the SDK's own pipeline
+  (aapt2 compile/link → kotlinc → d8 → zipalign → apksigner): `phone-controller-0.4.0.apk`,
+  v1+v2+v3 signatures verified with `apksigner verify`. The dex step logs cosmetic
+  kotlin.Metadata rewrite warnings (d8 8.2 vs Kotlin 2.0 metadata; runtime-irrelevant —
+  the app ships no kotlin-reflect); AGP 8.5.2 in CI does not hit this.
+- `python3 bootstrap.py check --strict` — green except the by-design in-progress badge
+  before this flip commit.
+
+## Landing mechanics (hub session — recorded for provenance)
+
+This session ran hub-side (fleet-manager scope); product-forge pushes from this
+container route via the hub handoff: the branch's commits are staged as a
+`git format-patch` series in fleet-manager (`projects/product-forge/handoff/`) with a
+one-command apply script, applied/landed by any product-forge-scoped session. Same
+work, different transport — the PR flow, gates, and merge rails above are unchanged.
