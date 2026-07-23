@@ -25,7 +25,15 @@
 #             parks as owner-merge-only (its workflow-touching rail). It ships
 #             in its OWN PR so the Slice-3 code (PR #31) could auto-land
 #             separately; this file waits for the owner to merge.
+# Slice 4   : the SDK-free job additionally runs :hid-core:test (the new
+#             pure-JVM HID report model — descriptor bytes + report bit-math),
+#             and assemble-app uploads the debug APK as a run ARTIFACT so every
+#             green run carries a downloadable, installable build (owner
+#             directive 2026-07-23: the app must be a downloadable APK).
+#             Tagged releases are the durable download path — see
+#             android-release.yml.
 # Date      : 2026-07-17 (Slice 2) · 2026-07-19 (Slice 3: assemble-app job)
+#             · 2026-07-23 (Slice 4: hid-core lane + APK artifact)
 # ========================================================================
 name: android-ci
 on:
@@ -58,8 +66,8 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.14.3"
-      - name: Build + unit-test the pure-JVM Kotlin verdict port
-        run: gradle :capability-core:test --no-daemon --console=plain
+      - name: Build + unit-test the pure-JVM modules (verdict port + HID report model)
+        run: gradle :capability-core:test :hid-core:test --no-daemon --console=plain
 
   assemble-app:
     # Compile-proof for the Android app module (the real BluetoothHidDevice
@@ -91,3 +99,9 @@ jobs:
           gradle-version: "8.14.3"
       - name: Assemble the debug APK (compiles the real transport + entry point)
         run: gradle :app:assembleDebug --no-daemon --console=plain
+      - name: Upload the debug APK as a downloadable run artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: phone-controller-debug-apk
+          path: products/phone-controller/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
