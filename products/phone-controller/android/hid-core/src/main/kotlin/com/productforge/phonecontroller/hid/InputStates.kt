@@ -1,5 +1,6 @@
 /*
- * Stateful input-report builders for the combo device's keyboard and gamepad reports.
+ * Stateful input-report builders for the combo device's keyboard, gamepad, and mouse
+ * reports.
  *
  * The transport owns one instance of each; the UI calls press/release mutators and
  * the transport ships `report()` on every change. Pure JVM, no synchronization —
@@ -130,5 +131,42 @@ class GamepadState {
         hatValue().toByte(),
         x.toByte(),
         y.toByte(),
+    )
+}
+
+/**
+ * Mouse state → the 4-byte Report-4 payload: [buttons, dx, dy, wheel].
+ *
+ * Held buttons persist across motion reports (hold Left + drag = drag-select); the
+ * deltas are per-report and clamped to the descriptor's -127..127 logical range —
+ * the touchpad layer is responsible for splitting or carrying anything larger
+ * (it carries fractional remainders anyway for density scaling).
+ */
+class MouseState {
+
+    private var buttons = 0
+
+    fun buttonDown(button: MouseButton) {
+        buttons = buttons or (1 shl button.bit)
+    }
+
+    fun buttonUp(button: MouseButton) {
+        buttons = buttons and (1 shl button.bit).inv()
+    }
+
+    /** Release everything (host disconnect / transport stop — no stuck buttons). */
+    fun clear() {
+        buttons = 0
+    }
+
+    /** True when no button is held. */
+    fun isNeutral(): Boolean = buttons == 0
+
+    /** The 4-byte Report-4 payload: current buttons + this report's deltas. */
+    fun report(dx: Int = 0, dy: Int = 0, wheel: Int = 0): ByteArray = byteArrayOf(
+        (buttons and 0xFF).toByte(),
+        dx.coerceIn(-127, 127).toByte(),
+        dy.coerceIn(-127, 127).toByte(),
+        wheel.coerceIn(-127, 127).toByte(),
     )
 }

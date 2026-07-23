@@ -21,7 +21,7 @@ class ComboHidDescriptorTest {
     // --- descriptor invariants -----------------------------------------------------
 
     @Test
-    fun `descriptor declares exactly the three report ids`() {
+    fun `descriptor declares exactly the four report ids`() {
         val d = ComboHidDescriptor.DESCRIPTOR
         val reportIds = mutableListOf<Int>()
         var i = 0
@@ -39,13 +39,14 @@ class ComboHidDescriptorTest {
                 ComboHidDescriptor.REPORT_ID_CONSUMER,
                 ComboHidDescriptor.REPORT_ID_KEYBOARD,
                 ComboHidDescriptor.REPORT_ID_GAMEPAD,
+                ComboHidDescriptor.REPORT_ID_MOUSE,
             ),
             reportIds,
         )
     }
 
     @Test
-    fun `descriptor opens and closes three application collections`() {
+    fun `descriptor opens and closes five collections (four application + mouse physical)`() {
         val d = ComboHidDescriptor.DESCRIPTOR
         var opens = 0
         var closes = 0
@@ -58,8 +59,8 @@ class ComboHidDescriptorTest {
                 else -> i += 1 + (d[i].toInt() and 0x03)
             }
         }
-        assertEquals(3, opens)
-        assertEquals(3, closes)
+        assertEquals(5, opens)
+        assertEquals(5, closes)
     }
 
     @Test
@@ -237,5 +238,77 @@ class GamepadStateTest {
     fun `payload length matches the descriptor constant`() {
         assertEquals(ComboHidDescriptor.GAMEPAD_REPORT_BYTES, GamepadState().report().size)
         assertEquals(ComboHidDescriptor.KEYBOARD_REPORT_BYTES, KeyboardState().report().size)
+    }
+}
+
+class MouseStateTest {
+
+    @Test
+    fun `button bits sit on the universal mouse layout`() {
+        assertEquals(0, MouseButton.LEFT.bit)
+        assertEquals(1, MouseButton.RIGHT.bit)
+        assertEquals(2, MouseButton.MIDDLE.bit)
+    }
+
+    @Test
+    fun `held buttons persist across motion reports and release clears them`() {
+        val m = MouseState()
+        m.buttonDown(MouseButton.LEFT)
+        assertContentEquals(byteArrayOf(0x01, 5, -3, 0), m.report(dx = 5, dy = -3))
+        // Button still held on the next pure-motion report (drag-select semantics).
+        assertContentEquals(byteArrayOf(0x01, 0, 0, 0), m.report())
+        m.buttonUp(MouseButton.LEFT)
+        m.buttonDown(MouseButton.RIGHT)
+        m.buttonDown(MouseButton.MIDDLE)
+        assertEquals(0x06, m.report()[0].toInt())
+        m.clear()
+        assertTrue(m.isNeutral())
+        assertContentEquals(ByteArray(ComboHidDescriptor.MOUSE_REPORT_BYTES), m.report())
+    }
+
+    @Test
+    fun `deltas clamp to the descriptor's logical range`() {
+        val m = MouseState()
+        val r = m.report(dx = 500, dy = -500, wheel = 200)
+        assertEquals(127, r[1].toInt())
+        assertEquals(-127, r[2].toInt())
+        assertEquals(127, r[3].toInt())
+    }
+
+    @Test
+    fun `payload length matches the descriptor constant`() {
+        assertEquals(ComboHidDescriptor.MOUSE_REPORT_BYTES, MouseState().report().size)
+    }
+}
+
+class KeyUsageMapTest {
+
+    @Test
+    fun `letter usages span the hid alphabet`() {
+        assertEquals(0x04, KeyUsage.letterUsage('a'))
+        assertEquals(KeyUsage.S, KeyUsage.letterUsage('s'))
+        assertEquals(KeyUsage.X, KeyUsage.letterUsage('x'))
+        assertEquals(0x1D, KeyUsage.letterUsage('z'))
+        assertFailsWith<IllegalArgumentException> { KeyUsage.letterUsage('A') }
+        assertFailsWith<IllegalArgumentException> { KeyUsage.letterUsage('1') }
+    }
+
+    @Test
+    fun `digit usages wrap zero to the end of the row`() {
+        assertEquals(0x1E, KeyUsage.digitUsage('1'))
+        assertEquals(0x26, KeyUsage.digitUsage('9'))
+        assertEquals(0x27, KeyUsage.digitUsage('0'))
+        assertFailsWith<IllegalArgumentException> { KeyUsage.digitUsage('a') }
+    }
+
+    @Test
+    fun `punctuation constants stay on their hid usages`() {
+        assertEquals(0x2D, KeyUsage.MINUS)
+        assertEquals(0x2E, KeyUsage.EQUALS)
+        assertEquals(0x31, KeyUsage.BACKSLASH)
+        assertEquals(0x33, KeyUsage.SEMICOLON)
+        assertEquals(0x35, KeyUsage.GRAVE)
+        assertEquals(0x38, KeyUsage.SLASH)
+        assertEquals(0x4C, KeyUsage.DELETE_FORWARD)
     }
 }

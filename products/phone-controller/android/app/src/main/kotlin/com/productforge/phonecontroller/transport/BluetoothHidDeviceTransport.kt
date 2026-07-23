@@ -39,6 +39,8 @@ import com.productforge.phonecontroller.hid.GamepadButton
 import com.productforge.phonecontroller.hid.GamepadState
 import com.productforge.phonecontroller.hid.KeyboardState
 import com.productforge.phonecontroller.hid.MediaButton
+import com.productforge.phonecontroller.hid.MouseButton
+import com.productforge.phonecontroller.hid.MouseState
 import java.util.concurrent.Executors
 
 /**
@@ -85,6 +87,7 @@ class BluetoothHidDeviceTransport(
 
     private val keyboard = KeyboardState()
     private val gamepad = GamepadState()
+    private val mouse = MouseState()
 
     // registerApp() requires an Executor for its callbacks; a single worker keeps the
     // callback order deterministic.
@@ -229,6 +232,44 @@ class BluetoothHidDeviceTransport(
         return sendOrReport(proxy, host, ComboHidDescriptor.REPORT_ID_GAMEPAD, gamepad.report(), "dpad ${direction.name}")
     }
 
+    /** Press/release a mouse button (Report 4). Hold Left + move = drag-select. */
+    @Synchronized
+    fun mouseButton(button: MouseButton, down: Boolean): Boolean {
+        val (proxy, host) = liveHost() ?: return false
+        if (down) mouse.buttonDown(button) else mouse.buttonUp(button)
+        return sendOrReport(proxy, host, ComboHidDescriptor.REPORT_ID_MOUSE, mouse.report(), "mouse ${button.name}")
+    }
+
+    /** Send a click as a press-then-release pair (Report 4, tap semantics). */
+    @Synchronized
+    fun mouseClick(button: MouseButton): Boolean {
+        val (proxy, host) = liveHost() ?: return false
+        mouse.buttonDown(button)
+        val pressed = proxy.sendReport(host, ComboHidDescriptor.REPORT_ID_MOUSE, mouse.report())
+        mouse.buttonUp(button)
+        val released = proxy.sendReport(host, ComboHidDescriptor.REPORT_ID_MOUSE, mouse.report())
+        if (!pressed || !released) listener.onError("sendReport() rejected for click ${button.name}")
+        return pressed && released
+    }
+
+    /** Move the pointer by a relative delta (Report 4; counts, -127..127 per report). */
+    @Synchronized
+    fun mouseMove(dx: Int, dy: Int): Boolean {
+        if (dx == 0 && dy == 0) return true
+        val (proxy, host) = liveHost() ?: return false
+        // Quiet on failure: motion reports stream at touch-event rate, and a single
+        // dropped delta is imperceptible — flooding onError would drown real faults.
+        return proxy.sendReport(host, ComboHidDescriptor.REPORT_ID_MOUSE, mouse.report(dx = dx, dy = dy))
+    }
+
+    /** Scroll the wheel by whole notches (Report 4; positive = content up). */
+    @Synchronized
+    fun mouseScroll(notches: Int): Boolean {
+        if (notches == 0) return true
+        val (proxy, host) = liveHost() ?: return false
+        return sendOrReport(proxy, host, ComboHidDescriptor.REPORT_ID_MOUSE, mouse.report(wheel = notches), "wheel")
+    }
+
     // --- profile proxy + registration callbacks -----------------------------------
 
     private val serviceListener = object : BluetoothProfile.ServiceListener {
@@ -278,6 +319,7 @@ class BluetoothHidDeviceTransport(
                     // No stuck inputs across a reconnect: forget everything held.
                     keyboard.clear()
                     gamepad.clear()
+                    mouse.clear()
                 }
             }
             listener.onConnectionStateChanged(device, connected)
@@ -338,10 +380,12 @@ class BluetoothHidDeviceTransport(
         val host = connectedHost ?: return
         keyboard.clear()
         gamepad.clear()
+        mouse.clear()
         runCatching {
             proxy.sendReport(host, ComboHidDescriptor.REPORT_ID_CONSUMER, MediaButton.RELEASE_REPORT)
             proxy.sendReport(host, ComboHidDescriptor.REPORT_ID_KEYBOARD, keyboard.report())
             proxy.sendReport(host, ComboHidDescriptor.REPORT_ID_GAMEPAD, gamepad.report())
+            proxy.sendReport(host, ComboHidDescriptor.REPORT_ID_MOUSE, mouse.report())
         }
     }
 

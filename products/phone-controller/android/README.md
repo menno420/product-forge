@@ -18,28 +18,30 @@ android/
   capability-core/             # pure-JVM verdict engine port (lockstep w/ Python core)
     src/main/kotlin/.../capability/Capability.kt
     src/test/kotlin/.../capability/CapabilityTest.kt
-  hid-core/                    # pure-JVM HID report model (Slice 4)
+  hid-core/                    # pure-JVM HID report model (Slice 4 · mouse in Slice 5)
     src/main/kotlin/.../hid/ComboHidDescriptor.kt   # descriptor + button/usage constants
-    src/main/kotlin/.../hid/InputStates.kt          # KeyboardState / GamepadState builders
+    src/main/kotlin/.../hid/InputStates.kt          # Keyboard/Gamepad/Mouse state builders
     src/test/kotlin/.../hid/ComboHidDescriptorTest.kt
   app/                         # Android app module (needs the Android SDK)
     build.gradle.kts           # AGP 8.5.2 · versioning · env-driven release signing
-    src/main/AndroidManifest.xml
+    src/main/AndroidManifest.xml                    # configChanges: rotation keeps the connection
     src/main/res/values/strings.xml
-    src/main/kotlin/.../MainActivity.kt             # permission flow + status + pad host
-    src/main/kotlin/.../ui/ControllerPads.kt        # gamepad / keys / media pads
+    src/main/kotlin/.../MainActivity.kt             # permissions + status + layout picker (portrait/landscape)
+    src/main/kotlin/.../ui/ControllerPads.kt        # six layouts + SlidePadRouter (glide between buttons)
+    src/main/kotlin/.../ui/TouchpadView.kt          # mouse surface (drag/tap/two-finger gestures)
     src/main/kotlin/.../transport/BluetoothHidDeviceTransport.kt  # the real transport
 ```
 
 ## The combo HID device (what a receiver sees)
 
-One SDP record (`SUBCLASS1_COMBO`, name **“Phone Controller”**) with three reports:
+One SDP record (`SUBCLASS1_COMBO`, name **“Phone Controller”**) with four reports:
 
 | Report | Collection | Payload | Drives |
 |---|---|---|---|
 | 1 | Consumer Control | 1 byte (7 button bits + pad) | media remote (Slice-2 layout, unchanged) |
-| 2 | Keyboard | 8 bytes (modifiers + reserved + 6-key array) | Keys pad — standard BT keyboard |
-| 3 | Gamepad | 5 bytes (16 buttons, hat D-pad, X/Y) | Gamepad pad — auto-detected controller |
+| 2 | Keyboard | 8 bytes (modifiers + reserved + 6-key array) | Keyboard + Emu-keys pads — standard BT keyboard |
+| 3 | Gamepad | 5 bytes (16 buttons, hat D-pad, X/Y) | Full-gamepad + GBA pads |
+| 4 | Mouse (relative) | 4 bytes (3 buttons, dx, dy, wheel) | Touchpad pad — standard BT mouse |
 
 Gamepad button bits follow the Linux-kernel convention (bit0=A/south … bit11=Start,
 bits 2/5 skipped), so an Android receiver yields `KEYCODE_BUTTON_A/B/X/Y/L1/R1/

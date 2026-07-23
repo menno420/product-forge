@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  String resources for the Slice-4 controller UI (MainActivity + pads). Verdict text
-  comes from the shared decision model (:capability-core evaluate()); these are the
-  display frames and action labels around it.
+  String resources for the controller UI (MainActivity + pads). Verdict text comes
+  from the shared decision model (:capability-core evaluate()); these are the
+  display frames, action labels, and layout names around it.
 -->
 <resources>
     <string name="app_name">Phone Controller</string>
@@ -30,8 +30,16 @@
     <!-- %1$s = device name being connected. -->
     <string name="connecting_fmt">Connecting to %1$s…</string>
 
-    <!-- Pad tabs -->
-    <string name="tab_gamepad">Gamepad</string>
-    <string name="tab_keys">Keys</string>
-    <string name="tab_media">Media</string>
+    <!-- Layouts -->
+    <string name="layout_label">Layout: </string>
+    <string name="layout_full_gamepad">Full gamepad</string>
+    <string name="layout_gba">GBA pad</string>
+    <string name="layout_touchpad">Touchpad</string>
+    <string name="layout_keyboard">Keyboard</string>
+    <string name="layout_emu_keys">Emu keys</string>
+    <string name="layout_media">Media</string>
+
+    <!-- Touchpad -->
+    <string name="touchpad_hint">Drag = move · tap = click · two-finger tap = right-click · two-finger drag = scroll</string>
+    <string name="sensitivity">Speed </string>
 </resources>
