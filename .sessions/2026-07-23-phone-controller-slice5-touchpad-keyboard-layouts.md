@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 5: touchpad-mouse + full keyboard + layout presets (builder lane)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: fable-5 · high · feature build
 
@@ -61,8 +61,44 @@ Select/Start — matched to the owner's GBA-emulator use) · **Touchpad** · **K
 · **Emu keys** (Slice-4 keys pad) · **Media**. The customizable layout *editor*
 remains the roadmap differentiator; presets are its cheap forerunner.
 
-**F · Version + docs.** v0.5.0 (versionCode 3); product + android READMEs updated
-(features, gesture table, layout list); heartbeat + this card.
+**F · Slide-over game pads (mid-slice live ask).** The owner's playtest surfaced the
+classic controller-feel gap: sliding a held finger from one button to the next did
+nothing (each button captured its own touch stream from finger-down). New
+`SlidePadRouter`: the game pads (Full gamepad · GBA · Emu keys) route ALL touches at
+the pad root, hit-test every active finger per event, and press/release on the diff —
+D-pad glide works like a physical pad, multi-finger chords keep working. The QWERTY
+pad deliberately keeps per-key holds (glide across a typing surface would spam
+letters); media keeps taps.
+
+**G · Landscape + rotation-safe connection (mid-slice live ask).** The owner holds
+the phone in landscape; the Slice-4 portrait stack squeezed the pad there. Landscape
+now gets a compact scrollable side panel (status + actions + layout picker) with the
+pad at full height — and the activity opts out of rotation restarts
+(`configChanges` + manual rebuild) because a recreate would tear down the HID
+registration and drop the live host connection mid-game.
+
+**H · Version + docs.** v0.5.0 (versionCode 3); product + android READMEs updated
+(features, gesture table, four-report table, layout list); heartbeat + this card.
+
+## Owner field results folded in (v0.4.0, same conversation)
+
+Laptop host: pairing ✓ · keyboard input ✓ · GBA emulator via keys ✓ · **gamepad
+reports confirmed live on hardwaretester.com** ✓ — so the earlier "gamepad not seen
+by the emulator" is emulator-side input binding (DirectInput/manual mapping), not the
+HID device. README now says so; exact mapping steps go to the owner once they name
+the emulator.
+
+## Verify — results (run locally this session, before landing)
+
+Same manual toolchain as Slice 4 (kotlinc 2.0.21 embeddable + JUnit console + SDK
+build-tools 34; CI re-proves on the canonical Gradle lanes):
+
+- **Pure-JVM lanes — 36/36 tests green** (13 capability lockstep + 23 hid-core:
+  descriptor invariants now pin FOUR report IDs / five collections, mouse state,
+  key-map helpers).
+- **App module compiles against android.jar** (platform-34, jvm-target 17) — all six
+  layouts, SlidePadRouter, TouchpadView, landscape scaffolding, transport mouse APIs.
+- `python3 bootstrap.py check --strict` — green at flip.
 
 ## Decide-and-flag
 
