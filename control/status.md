@@ -1,9 +1,17 @@
 # product-forge · status
 
-updated: 2026-07-11T19:39:50Z
-phase: close-out / archived-ready
-lane: builder (games-web) · continuous-mode → archived
+updated: 2026-07-23T19:27:52Z
+phase: ACTIVE — phone-controller Slice 4 IN FLIGHT (usable controller UI + downloadable APK)
+lane: builder (phone-controller) · owner-live session
 health: green
+
+## WIP — this session (2026-07-23, owner-live directive)
+Owner's live instruction (outranks the 07-11 archive-ready note per fleet precedence):
+finish the controller app as a **downloadable APK** usable as a Bluetooth-HID input
+device for other Android devices (emulator use case). In flight on branch
+`claude/controller-app-android-apk-j7tv10` — born-red card
+`.sessions/2026-07-23-phone-controller-slice4-apk.md`. Slices 1–3 context: PRs
+#27/#28/#29/#31/#32 (post-archive hub-driven work; the PR ledger below predates them).
 
 ## Orders
 orders: acked=001,002,003,004 done=001,002,003,004
