@@ -1,11 +1,17 @@
 # product-forge · status
 
-updated: 2026-07-23T19:51:56Z
-phase: phone-controller Slice 4 SHIPPED — usable controller app + downloadable-APK lanes; physical playtest pending
+updated: 2026-07-23T21:20:26Z
+phase: ACTIVE — phone-controller Slice 5 IN FLIGHT (touchpad-mouse + full keyboard + layout presets)
 lane: builder (phone-controller) · owner-live session 2026-07-23
 health: green
 
 ## This session (2026-07-23, owner-live directive)
+**Slice 5 WIP (same owner-live conversation, later the same day):** owner playtest of
+v0.4.0 succeeded against a laptop (pairing + keyboard + emu-keys confirmed working);
+requested growth features now in flight on branch `claude/controller-app-android-apk-j7tv10`
+(restarted from `ccb1e98`): touchpad-mouse (Report 4), full QWERTY pad, controller
+layout presets. Born-red card: `.sessions/2026-07-23-phone-controller-slice5-touchpad-keyboard-layouts.md`.
+
 Owner's live instruction: finish the controller app as a **downloadable APK** usable as
 a Bluetooth-HID input device for other Android devices (emulator use case). Delivered
 as Slice 4 — session card `.sessions/2026-07-23-phone-controller-slice4-apk.md`:
