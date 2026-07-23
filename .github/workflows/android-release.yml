@@ -1,0 +1,131 @@
+# android-release — build + publish the phone-controller APK as a GitHub Release.
+#
+# ============================== PROVENANCE ==============================
+# Why added : Slice 4 of products/phone-controller/ (owner directive
+#             2026-07-23: the controller app must be a DOWNLOADABLE APK a
+#             person can install and use as a BT-HID input device for other
+#             Android devices). CI's assemble-app job proves compilation and
+#             carries a per-run debug-APK artifact; THIS lane is the durable
+#             download path: a `phone-controller-v*` tag (or a manual
+#             dispatch naming one) builds the RELEASE APK and attaches
+#             it + its sha256 to a GitHub Release at
+#             https://github.com/menno420/product-forge/releases.
+# Signing   : prefers the repo secrets PC_RELEASE_KEYSTORE_B64 /
+#             PC_RELEASE_KEYSTORE_PASSWORD (base64 PKCS12 keystore — stable
+#             signature, so installs update in place). With no secrets set,
+#             an EPHEMERAL keystore is generated for the run: the APK still
+#             installs everywhere, but the next release's signature differs
+#             (uninstall/reinstall between updates). The keystore file is
+#             never committed; the gradle side reads it via the
+#             PC_RELEASE_* env vars (app/build.gradle.kts).
+# Owner-gate: .github/workflows/** file — merge-on-green parks its PR as
+#             owner-merge-only (same rail as android-ci.yml; hub-merge under
+#             a live owner directive is the recorded precedent, PR #29).
+# Date      : 2026-07-23 (Slice 4)
+# ========================================================================
+name: android-release
+on:
+  push:
+    tags: ["phone-controller-v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing phone-controller-v* tag to (re)publish"
+        required: true
+        type: string
+permissions:
+  contents: write
+jobs:
+  release-apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: products/phone-controller/android
+    steps:
+      - name: Resolve the release tag
+        id: tag
+        working-directory: .
+        env:
+          DISPATCH_TAG: ${{ inputs.tag }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="$DISPATCH_TAG"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          case "$TAG" in
+            phone-controller-v*) : ;;
+            *) echo "::error::'$TAG' is not a phone-controller-v* tag"; exit 1 ;;
+          esac
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#phone-controller-v}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install the SDK packages the app module compiles against
+        run: sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+      - name: Materialize the release keystore (repo secret, or ephemeral fallback)
+        env:
+          KEYSTORE_B64: ${{ secrets.PC_RELEASE_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.PC_RELEASE_KEYSTORE_PASSWORD }}
+        run: |
+          KS="$RUNNER_TEMP/release-keystore.p12"
+          if [ -n "$KEYSTORE_B64" ] && [ -n "$KEYSTORE_PASSWORD" ]; then
+            printf '%s' "$KEYSTORE_B64" | base64 -d > "$KS"
+            PASS="$KEYSTORE_PASSWORD"
+            echo "signing: stable repo keystore"
+          else
+            PASS="ephemeral-${GITHUB_RUN_ID}"
+            keytool -genkeypair -keystore "$KS" -storetype PKCS12 \
+              -storepass "$PASS" -alias phone-controller \
+              -dname "CN=phone-controller ephemeral release" \
+              -keyalg RSA -keysize 2048 -validity 10000
+            echo "::notice::No PC_RELEASE_KEYSTORE_B64/_PASSWORD secrets — signed with an EPHEMERAL keystore; installs work, but updating a previous install needs uninstall/reinstall."
+          fi
+          {
+            echo "PC_RELEASE_KEYSTORE=$KS"
+            echo "PC_RELEASE_KEYSTORE_PASSWORD=$PASS"
+          } >> "$GITHUB_ENV"
+      - name: Assemble the signed release APK
+        run: gradle :app:assembleRelease --no-daemon --console=plain
+      - name: Stage the APK under its release name + checksum
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          OUT="app/build/outputs/apk/release/app-release.apk"
+          test -f "$OUT" || { echo "::error::release APK not found at $OUT"; ls -R app/build/outputs || true; exit 1; }
+          cp "$OUT" "phone-controller-$VERSION.apk"
+          sha256sum "phone-controller-$VERSION.apk" > "phone-controller-$VERSION.apk.sha256"
+          cat "phone-controller-$VERSION.apk.sha256"
+      - name: Create the GitHub Release with the APK attached (idempotent re-run)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          APK="phone-controller-$VERSION.apk"
+          NOTES="Phone Controller v$VERSION — turn this phone into a Bluetooth-HID \
+          keyboard / gamepad / media remote for other Android devices (emulator-ready). \
+          Install: download the APK on the phone, allow install-unknown-apps, open it, \
+          grant the Nearby-devices permission, tap Discoverable, then pair from the \
+          target device. Docs: products/phone-controller/README.md. \
+          sha256: $(cut -d' ' -f1 "$APK.sha256")"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" "$APK.sha256" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" "$APK" "$APK.sha256" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Phone Controller v$VERSION" \
+              --notes "$NOTES"
+          fi

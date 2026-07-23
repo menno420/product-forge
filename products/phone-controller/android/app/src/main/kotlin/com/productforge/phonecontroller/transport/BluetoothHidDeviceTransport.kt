@@ -1,26 +1,24 @@
 /*
- * BluetoothHidDeviceTransport — the REAL Classic-BT-HID transport (Slice-2 skeleton).
+ * BluetoothHidDeviceTransport — the REAL Classic-BT-HID transport.
  *
- * This is the on-device counterpart to the platform-agnostic verdict engine. It:
- *   1. binds the HID_DEVICE profile proxy via BluetoothAdapter.getProfileProxy(),
- *   2. attempts ONE registerApp() with a fixed media-remote SDP record + report
- *      descriptor — this is the runtime OEM-flag probe (registerApp() failing on an
- *      API-28+ phone is exactly the OEM-disabled case the verdict engine names),
- *   3. sends input reports on the HID interrupt channel via sendReport(), and
- *   4. feeds the probe RESULT into the shared decision model
- *      (`com.productforge.phonecontroller.capability.evaluate`) so the Android layer
- *      consumes the same verdicts as the portable Python core.
+ * Slice 2 proved the skeleton (bind the HID_DEVICE proxy, one registerApp() probe,
+ * sendReport on the interrupt channel, feed the probe result into the shared verdict
+ * engine). Slice 4 makes it a usable input device:
  *
- * SKELETON SCOPE (Slice 2): a fixed media-remote HID device + registerApp/sendReport
- * is enough to prove the transport. Customisable layouts, pairing UI, reconnection,
- * and the BLE-HOGP fallback path are Slice 3+. This file is Android-app source and is
- * NOT built by the CI lane (which builds only the SDK-free :capability-core); it
- * compiles once the AGP build is wired in (see app/build.gradle.kts + README).
+ *   * registers the COMBO descriptor from :hid-core (consumer media remote +
+ *     keyboard + gamepad — the shapes emulator receivers consume);
+ *   * exposes hold-capable input APIs (key/gamepad press AND release are separate
+ *     calls, so hold-to-run works) backed by the pure-JVM report builders;
+ *   * can initiate a connection to an already-bonded host (connectTo / bondedHosts)
+ *     in addition to waiting for the host to connect;
+ *   * releases all inputs on host disconnect and on stop() — no stuck keys;
+ *   * surfaces SecurityException (missing runtime Bluetooth permission) as a
+ *     transport error instead of a crash.
  *
- * Grounding: BluetoothHidDevice requires API 28 (Android 9); registerApp() can still
- * fail on API-28+ devices because the HID device role sits behind an OEM compile-flag
- * — so support is PROBED here, never assumed (idea doc
- * menno420/idea-engine : ideas/product-forge/bt-controller-plan-2026-07-17.md).
+ * The probe semantics are unchanged from Slice 2: registerApp() failing on an
+ * API-28+ phone is exactly the verdict engine's OEM_DISABLED case, and every probe
+ * outcome still flows through the SHARED decision model (:capability-core evaluate()),
+ * so the Android layer reaches the same verdict the portable Python core would.
  */
 package com.productforge.phonecontroller.transport
 
@@ -35,17 +33,23 @@ import com.productforge.phonecontroller.capability.ProbeInput
 import com.productforge.phonecontroller.capability.Verdict
 import com.productforge.phonecontroller.capability.VerdictCode
 import com.productforge.phonecontroller.capability.evaluate
+import com.productforge.phonecontroller.hid.ComboHidDescriptor
+import com.productforge.phonecontroller.hid.DpadDirection
+import com.productforge.phonecontroller.hid.GamepadButton
+import com.productforge.phonecontroller.hid.GamepadState
+import com.productforge.phonecontroller.hid.KeyboardState
+import com.productforge.phonecontroller.hid.MediaButton
 import java.util.concurrent.Executors
 
 /**
- * Callbacks the UI layer implements to observe transport state. Kept minimal for the
- * skeleton; Slice 3 grows this (pairing progress, per-device connection state, etc.).
+ * Callbacks the UI layer implements to observe transport state. Grown in Slice 4
+ * (the controller UI reacts to registration + per-host connection changes).
  */
 interface HidTransportListener {
     /** The runtime probe resolved to a verdict from the shared decision model. */
     fun onVerdict(verdict: Verdict)
 
-    /** registerApp() succeeded — the phone is now advertising as a HID media remote. */
+    /** registerApp() succeeded — the phone is now advertising as a HID combo device. */
     fun onRegistered()
 
     /** A HID host connected/disconnected on the control+interrupt channels. */
@@ -56,10 +60,14 @@ interface HidTransportListener {
 }
 
 /**
- * Drives the Classic Bluetooth HID *device* role for a fixed media-remote profile.
+ * Drives the Classic Bluetooth HID *device* role for the combo controller profile.
  *
  * Lifecycle: [start] -> (proxy binds) -> registerApp() -> [onRegistered] ->
- * [sendMediaButton] while a host is connected -> [stop].
+ * host pairs/connects (or [connectTo] a bonded host) -> input calls while connected
+ * -> [stop].
+ *
+ * Threading: UI-thread calls mutate the input states; profile callbacks arrive on a
+ * single-worker executor. All mutable state is confined behind @Synchronized.
  *
  * @param context an application Context (used only to bind the profile proxy).
  * @param adapter the default BluetoothAdapter, or null on a device with no Bluetooth.
@@ -75,18 +83,21 @@ class BluetoothHidDeviceTransport(
     private var registered = false
     private var connectedHost: BluetoothDevice? = null
 
-    // registerApp() requires an Executor for its callbacks; a single worker is plenty
-    // for the skeleton's one-report device.
+    private val keyboard = KeyboardState()
+    private val gamepad = GamepadState()
+
+    // registerApp() requires an Executor for its callbacks; a single worker keeps the
+    // callback order deterministic.
     private val callbackExecutor = Executors.newSingleThreadExecutor()
 
-    /** Fixed SDP record advertised to hosts: a Consumer-Control "media remote". */
+    /** SDP record advertised to hosts: a combo keyboard/gamepad/media controller. */
     private val sdpSettings: BluetoothHidDeviceAppSdpSettings by lazy {
         BluetoothHidDeviceAppSdpSettings(
-            /* name = */ "Phone Controller (Media Remote)",
-            /* description = */ "Customisable phone-as-controller — media-remote profile",
+            /* name = */ "Phone Controller",
+            /* description = */ "Phone-as-controller — keyboard / gamepad / media remote",
             /* provider = */ "product-forge",
             /* subclass = */ BluetoothHidDevice.SUBCLASS1_COMBO,
-            /* descriptors = */ MediaRemoteHidDescriptor.DESCRIPTOR,
+            /* descriptors = */ ComboHidDescriptor.DESCRIPTOR,
         )
     }
 
@@ -110,14 +121,21 @@ class BluetoothHidDeviceTransport(
             emitVerdict(hidRoleAvailable = false, blePeripheral = blePeripheralSupported(bt))
             return false
         }
-        return bt.getProfileProxy(context, serviceListener, BluetoothProfile.HID_DEVICE)
+        return runCatching {
+            bt.getProfileProxy(context, serviceListener, BluetoothProfile.HID_DEVICE)
+        }.getOrElse {
+            listener.onError("HID proxy bind failed: ${it.message}")
+            false
+        }
     }
 
     /** Unregister and release the profile proxy. Safe to call more than once. */
+    @Synchronized
     fun stop() {
         val proxy = hidDevice
         if (proxy != null) {
             if (registered) {
+                releaseAllInputs(proxy)
                 runCatching { proxy.unregisterApp() }
                 registered = false
             }
@@ -128,19 +146,87 @@ class BluetoothHidDeviceTransport(
         callbackExecutor.shutdown()
     }
 
+    // --- connection management ------------------------------------------------------
+
+    /** True while a host is connected and the app registration is live. */
+    @get:Synchronized
+    val isConnected: Boolean
+        get() = registered && connectedHost != null
+
+    /** The connected host's display name, or null. Needs BLUETOOTH_CONNECT on 31+. */
+    @Synchronized
+    fun connectedHostName(): String? =
+        connectedHost?.let { runCatching { it.name }.getOrNull() ?: it.address }
+
     /**
-     * Send a media button as a press-then-release pair on the HID interrupt channel.
-     *
-     * @return true if both reports were handed to sendReport() for a connected host.
+     * Bonded (paired) devices this phone could actively connect to as a HID device.
+     * Empty until the runtime permission is granted.
      */
-    fun sendMediaButton(button: MediaButton): Boolean {
+    fun bondedHosts(): List<BluetoothDevice> =
+        runCatching { adapter?.bondedDevices?.toList() ?: emptyList() }
+            .getOrElse {
+                listener.onError("cannot list bonded devices: ${it.message}")
+                emptyList()
+            }
+
+    /**
+     * Initiate a connection to an already-bonded host (the alternative to waiting for
+     * the host to connect first). Registration must be live.
+     */
+    @Synchronized
+    fun connectTo(device: BluetoothDevice): Boolean {
         val proxy = hidDevice ?: return false
-        val host = connectedHost ?: return false
         if (!registered) return false
-        val pressed = proxy.sendReport(host, MediaRemoteHidDescriptor.REPORT_ID, button.pressReport())
-        val released = proxy.sendReport(host, MediaRemoteHidDescriptor.REPORT_ID, MediaButton.RELEASE_REPORT)
+        return runCatching { proxy.connect(device) }
+            .getOrElse {
+                listener.onError("connect(${runCatching { device.name }.getOrNull() ?: device.address}) failed: ${it.message}")
+                false
+            }
+    }
+
+    // --- input APIs (all hold-capable: press and release are separate calls) --------
+
+    /** Send a media button as a press-then-release pair (Report 1, tap semantics). */
+    @Synchronized
+    fun sendMediaButton(button: MediaButton): Boolean {
+        val (proxy, host) = liveHost() ?: return false
+        val pressed = proxy.sendReport(host, ComboHidDescriptor.REPORT_ID_CONSUMER, button.pressReport())
+        val released = proxy.sendReport(host, ComboHidDescriptor.REPORT_ID_CONSUMER, MediaButton.RELEASE_REPORT)
         if (!pressed || !released) listener.onError("sendReport() rejected for ${button.name}")
         return pressed && released
+    }
+
+    /** Press/release a keyboard usage (Report 2). Returns false when not connected. */
+    @Synchronized
+    fun key(usage: Int, down: Boolean): Boolean {
+        val (proxy, host) = liveHost() ?: return false
+        val changed = if (down) keyboard.keyDown(usage) else keyboard.keyUp(usage)
+        if (!changed) return false
+        return sendOrReport(proxy, host, ComboHidDescriptor.REPORT_ID_KEYBOARD, keyboard.report(), "key $usage")
+    }
+
+    /** Press/release a keyboard modifier mask (Report 2). */
+    @Synchronized
+    fun modifier(mask: Int, down: Boolean): Boolean {
+        val (proxy, host) = liveHost() ?: return false
+        keyboard.setModifier(mask, down)
+        return sendOrReport(proxy, host, ComboHidDescriptor.REPORT_ID_KEYBOARD, keyboard.report(), "modifier $mask")
+    }
+
+    /** Press/release a gamepad button (Report 3). */
+    @Synchronized
+    fun gamepadButton(button: GamepadButton, down: Boolean): Boolean {
+        val (proxy, host) = liveHost() ?: return false
+        if (down) gamepad.buttonDown(button) else gamepad.buttonUp(button)
+        return sendOrReport(proxy, host, ComboHidDescriptor.REPORT_ID_GAMEPAD, gamepad.report(), "gamepad ${button.name}")
+    }
+
+    /** Hold/release a D-pad direction (Report 3; folded into the hat switch). */
+    @Synchronized
+    fun dpad(direction: DpadDirection, down: Boolean): Boolean {
+        val (proxy, host) = liveHost() ?: return false
+        gamepad.dpad(direction, down)
+        return sendOrReport(proxy, host, ComboHidDescriptor.REPORT_ID_GAMEPAD, gamepad.report(), "dpad ${direction.name}")
     }
 
     // --- profile proxy + registration callbacks -----------------------------------
@@ -149,11 +235,16 @@ class BluetoothHidDeviceTransport(
         override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
             if (profile != BluetoothProfile.HID_DEVICE) return
             val hid = proxy as BluetoothHidDevice
-            hidDevice = hid
+            synchronized(this@BluetoothHidDeviceTransport) { hidDevice = hid }
             // THE OEM-FLAG PROBE: on some API-28+ phones this returns false / never
             // fires onAppStatusChanged(registered=true) because the OEM compiled the
             // HID device role out. That outcome is exactly OEM_DISABLED in the engine.
-            val accepted = hid.registerApp(sdpSettings, null, null, callbackExecutor, hidCallback)
+            val accepted = runCatching {
+                hid.registerApp(sdpSettings, null, null, callbackExecutor, hidCallback)
+            }.getOrElse {
+                listener.onError("registerApp() threw: ${it.message} (missing Bluetooth permission?)")
+                false
+            }
             if (!accepted) {
                 emitVerdict(hidRoleAvailable = false, blePeripheral = blePeripheralSupported(adapter))
                 listener.onError("registerApp() was rejected — HID device role unavailable (OEM-gated?)")
@@ -162,15 +253,17 @@ class BluetoothHidDeviceTransport(
 
         override fun onServiceDisconnected(profile: Int) {
             if (profile == BluetoothProfile.HID_DEVICE) {
-                hidDevice = null
-                registered = false
+                synchronized(this@BluetoothHidDeviceTransport) {
+                    hidDevice = null
+                    registered = false
+                }
             }
         }
     }
 
     private val hidCallback = object : BluetoothHidDevice.Callback() {
         override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, appRegistered: Boolean) {
-            registered = appRegistered
+            synchronized(this@BluetoothHidDeviceTransport) { registered = appRegistered }
             // registerApp() actually took: the runtime probe says the HID role IS
             // available. Feed that into the shared decision model.
             emitVerdict(hidRoleAvailable = appRegistered, blePeripheral = blePeripheralSupported(adapter))
@@ -179,7 +272,14 @@ class BluetoothHidDeviceTransport(
 
         override fun onConnectionStateChanged(device: BluetoothDevice?, state: Int) {
             val connected = state == BluetoothProfile.STATE_CONNECTED
-            connectedHost = if (connected) device else null
+            synchronized(this@BluetoothHidDeviceTransport) {
+                connectedHost = if (connected) device else null
+                if (!connected) {
+                    // No stuck inputs across a reconnect: forget everything held.
+                    keyboard.clear()
+                    gamepad.clear()
+                }
+            }
             listener.onConnectionStateChanged(device, connected)
         }
     }
@@ -188,8 +288,8 @@ class BluetoothHidDeviceTransport(
 
     /**
      * Build a [ProbeInput] from the current runtime facts and evaluate it with the
-     * SHARED decision model. This is the crux of Slice 2: the Android transport and
-     * the portable Python core reach the same verdict from the same inputs.
+     * SHARED decision model — the Android transport and the portable Python core
+     * reach the same verdict from the same inputs.
      */
     fun probeAndEvaluate(hidRoleAvailable: Boolean, blePeripheral: Boolean): Verdict =
         evaluate(
@@ -211,7 +311,41 @@ class BluetoothHidDeviceTransport(
         listener.onVerdict(verdict)
     }
 
+    // --- helpers --------------------------------------------------------------------
+
+    /** The (proxy, host) pair when input can flow; null (and no-op) otherwise. */
+    private fun liveHost(): Pair<BluetoothHidDevice, BluetoothDevice>? {
+        val proxy = hidDevice ?: return null
+        val host = connectedHost ?: return null
+        if (!registered) return null
+        return proxy to host
+    }
+
+    private fun sendOrReport(
+        proxy: BluetoothHidDevice,
+        host: BluetoothDevice,
+        reportId: Int,
+        payload: ByteArray,
+        what: String,
+    ): Boolean {
+        val ok = runCatching { proxy.sendReport(host, reportId, payload) }.getOrDefault(false)
+        if (!ok) listener.onError("sendReport() rejected for $what")
+        return ok
+    }
+
+    /** All-zero reports for every collection — called before unregistering. */
+    private fun releaseAllInputs(proxy: BluetoothHidDevice) {
+        val host = connectedHost ?: return
+        keyboard.clear()
+        gamepad.clear()
+        runCatching {
+            proxy.sendReport(host, ComboHidDescriptor.REPORT_ID_CONSUMER, MediaButton.RELEASE_REPORT)
+            proxy.sendReport(host, ComboHidDescriptor.REPORT_ID_KEYBOARD, keyboard.report())
+            proxy.sendReport(host, ComboHidDescriptor.REPORT_ID_GAMEPAD, gamepad.report())
+        }
+    }
+
     @Suppress("DEPRECATION")
     private fun blePeripheralSupported(bt: BluetoothAdapter?): Boolean =
-        bt?.isMultipleAdvertisementSupported == true
+        runCatching { bt?.isMultipleAdvertisementSupported == true }.getOrDefault(false)
 }

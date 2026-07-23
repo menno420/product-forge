@@ -1,13 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  String resources for the Slice-3 capability-screen stub (MainActivity). The verdict
-  text comes from the shared decision model (:capability-core evaluate()); these are
-  just the display frames. The full controller UI's strings arrive in a later slice.
+  String resources for the Slice-4 controller UI (MainActivity + pads). Verdict text
+  comes from the shared decision model (:capability-core evaluate()); these are the
+  display frames and action labels around it.
 -->
 <resources>
     <string name="app_name">Phone Controller</string>
+
+    <!-- Status line -->
     <string name="probing">Probing controller capability…</string>
-    <!-- %1$s = verdict code, %2$s = human-readable reason from the shared engine. -->
-    <string name="verdict_fmt">Verdict: %1$s\n\n%2$s</string>
-    <string name="error_fmt">Transport error: %1$s</string>
+    <string name="requesting_permissions">Requesting Bluetooth permissions…</string>
+    <string name="permission_denied">Bluetooth permission denied — tap Re-probe to grant it (or allow “Nearby devices” in Settings → Apps → Phone Controller).</string>
+    <!-- %1$s = verdict code, %2$s = headline from the shared engine. -->
+    <string name="verdict_fmt">%1$s — %2$s</string>
+    <string name="registered_hint">Advertising as “Phone Controller” — pair from the other device’s Bluetooth settings, or tap Connect for an already-paired one.</string>
+    <!-- %1$s = connected host name. -->
+    <string name="connected_fmt">Connected to %1$s — controller is live.</string>
+    <string name="disconnected_hint">Host disconnected — reconnect from the other device, or tap Connect.</string>
+    <string name="unknown_device">device</string>
+    <!-- %1$s = transport error detail. -->
+    <string name="error_fmt">Transport: %1$s</string>
+
+    <!-- Actions -->
+    <string name="make_discoverable">Discoverable</string>
+    <string name="connect_bonded">Connect…</string>
+    <string name="reprobe">Re-probe</string>
+    <string name="connect_dialog_title">Connect to a paired device</string>
+    <string name="no_bonded_devices">No paired devices yet — pair from the target device first (tap Discoverable here, then scan from the other device).</string>
+    <!-- %1$s = device name being connected. -->
+    <string name="connecting_fmt">Connecting to %1$s…</string>
+
+    <!-- Pad tabs -->
+    <string name="tab_gamepad">Gamepad</string>
+    <string name="tab_keys">Keys</string>
+    <string name="tab_media">Media</string>
 </resources>
