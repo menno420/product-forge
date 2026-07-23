@@ -1,11 +1,18 @@
 # product-forge · status
 
-updated: 2026-07-23T21:31:38Z
-phase: phone-controller Slice 5 SHIPPED — touchpad-mouse + full keyboard + layout presets + slide-over pads + landscape (v0.5.0)
+updated: 2026-07-23T21:54:53Z
+phase: ACTIVE — phone-controller Slice 6 IN FLIGHT (layout editor, analog sticks, turbo/haptics, ergonomics)
 lane: builder (phone-controller) · owner-live session 2026-07-23
 health: green
 
 ## This session (2026-07-23, owner-live directive)
+**Slice 6 WIP (same conversation):** owner approved the research gap plan verbatim
+("implement all additions"). In flight on `claude/controller-app-android-apk-j7tv10`
+(restarted from #35 merge): custom layout editor + per-button turbo + haptics, analog
+sticks (descriptor rev, right stick = Z/RZ), gyro→R-stick, dim/immersive, per-host
+layout memory + auto-reconnect, stale-pairing warning, keyboard F-row, latency stat.
+Born-red card: `.sessions/2026-07-23-phone-controller-slice6-editor-sticks-ergonomics.md`.
+
 **Slice 5 SHIPPED (same owner-live conversation):** owner playtest of v0.4.0 against a
 laptop succeeded (pairing + keyboard + emu-keys working; gamepad reports confirmed on a
 HID tester — emulator-side binding is per-emulator config). Live feature asks delivered
