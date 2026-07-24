@@ -1,0 +1,151 @@
+/*
+ * CustomLayout — the user-editable layout model + JSON codec + prefs store
+ * (Slice 6, the customization moat from the market research).
+ *
+ * A layout is a named list of buttons positioned in PERCENT of the pad area
+ * (x/y = top-left corner, w/h = size, all 0..1), each carrying one action and an
+ * optional per-button turbo flag. Serialized with org.json (in the Android SDK —
+ * no new dependency); stored as one JSON array in SharedPreferences.
+ *
+ * Action codes are stored as STRINGS (enum names, or the integer usage/mask for
+ * keyboard actions) so saved layouts survive enum reordering.
+ */
+package com.productforge.phonecontroller.layout
+
+import android.content.SharedPreferences
+import org.json.JSONArray
+import org.json.JSONObject
+
+enum class PadActionType {
+    /** code = GamepadButton name. */
+    GAMEPAD,
+
+    /** code = DpadDirection name. */
+    DPAD,
+
+    /** code = keyboard usage int (decimal string). */
+    KEY,
+
+    /** code = modifier mask int (decimal string). */
+    MODIFIER,
+
+    /** code = MediaButton name (tap semantics; turbo not applicable). */
+    MEDIA,
+
+    /** code = MouseButton name. */
+    MOUSE,
+}
+
+data class PadAction(val type: PadActionType, val code: String)
+
+data class PadButtonSpec(
+    var xPct: Float,
+    var yPct: Float,
+    var wPct: Float,
+    var hPct: Float,
+    var label: String,
+    var action: PadAction,
+    var turbo: Boolean = false,
+) {
+    fun clampToPad() {
+        wPct = wPct.coerceIn(0.06f, 0.5f)
+        hPct = hPct.coerceIn(0.08f, 0.5f)
+        xPct = xPct.coerceIn(0f, 1f - wPct)
+        yPct = yPct.coerceIn(0f, 1f - hPct)
+    }
+
+    fun toJson(): JSONObject = JSONObject()
+        .put("x", xPct.toDouble())
+        .put("y", yPct.toDouble())
+        .put("w", wPct.toDouble())
+        .put("h", hPct.toDouble())
+        .put("label", label)
+        .put("type", action.type.name)
+        .put("code", action.code)
+        .put("turbo", turbo)
+
+    companion object {
+        fun fromJson(o: JSONObject): PadButtonSpec = PadButtonSpec(
+            xPct = o.getDouble("x").toFloat(),
+            yPct = o.getDouble("y").toFloat(),
+            wPct = o.getDouble("w").toFloat(),
+            hPct = o.getDouble("h").toFloat(),
+            label = o.getString("label"),
+            action = PadAction(PadActionType.valueOf(o.getString("type")), o.getString("code")),
+            turbo = o.optBoolean("turbo", false),
+        ).also { it.clampToPad() }
+    }
+}
+
+data class CustomLayout(
+    val id: String,
+    var name: String,
+    val buttons: MutableList<PadButtonSpec>,
+) {
+    fun toJson(): JSONObject = JSONObject()
+        .put("id", id)
+        .put("name", name)
+        .put("buttons", JSONArray().also { arr -> buttons.forEach { arr.put(it.toJson()) } })
+
+    companion object {
+        fun fromJson(o: JSONObject): CustomLayout {
+            val buttons = mutableListOf<PadButtonSpec>()
+            val arr = o.getJSONArray("buttons")
+            for (i in 0 until arr.length()) buttons.add(PadButtonSpec.fromJson(arr.getJSONObject(i)))
+            return CustomLayout(o.getString("id"), o.getString("name"), buttons)
+        }
+
+        /** A starter template (GBA-ish core) the editor seeds new layouts from. */
+        fun template(id: String, name: String): CustomLayout = CustomLayout(
+            id = id,
+            name = name,
+            buttons = mutableListOf(
+                PadButtonSpec(0.05f, 0.22f, 0.12f, 0.20f, "▲", PadAction(PadActionType.DPAD, "UP")),
+                PadButtonSpec(0.05f, 0.62f, 0.12f, 0.20f, "▼", PadAction(PadActionType.DPAD, "DOWN")),
+                PadButtonSpec(0.00f, 0.42f, 0.11f, 0.20f, "◀", PadAction(PadActionType.DPAD, "LEFT")),
+                PadButtonSpec(0.11f, 0.42f, 0.11f, 0.20f, "▶", PadAction(PadActionType.DPAD, "RIGHT")),
+                PadButtonSpec(0.86f, 0.30f, 0.13f, 0.22f, "A", PadAction(PadActionType.GAMEPAD, "A")),
+                PadButtonSpec(0.72f, 0.52f, 0.13f, 0.22f, "B", PadAction(PadActionType.GAMEPAD, "B")),
+                PadButtonSpec(0.30f, 0.84f, 0.18f, 0.14f, "SELECT", PadAction(PadActionType.GAMEPAD, "SELECT")),
+                PadButtonSpec(0.52f, 0.84f, 0.18f, 0.14f, "START", PadAction(PadActionType.GAMEPAD, "START")),
+                PadButtonSpec(0.00f, 0.00f, 0.16f, 0.13f, "L", PadAction(PadActionType.GAMEPAD, "L1")),
+                PadButtonSpec(0.84f, 0.00f, 0.16f, 0.13f, "R", PadAction(PadActionType.GAMEPAD, "R1")),
+            ),
+        )
+    }
+}
+
+/** CRUD over the prefs-backed layout list. */
+class LayoutStore(private val prefs: SharedPreferences) {
+
+    fun all(): MutableList<CustomLayout> {
+        val raw = prefs.getString(KEY, null) ?: return mutableListOf()
+        return runCatching {
+            val arr = JSONArray(raw)
+            MutableList(arr.length()) { i -> CustomLayout.fromJson(arr.getJSONObject(i)) }
+        }.getOrElse { mutableListOf() } // a corrupt store never bricks the app
+    }
+
+    fun byId(id: String): CustomLayout? = all().firstOrNull { it.id == id }
+
+    fun save(layout: CustomLayout) {
+        val layouts = all()
+        val i = layouts.indexOfFirst { it.id == layout.id }
+        if (i >= 0) layouts[i] = layout else layouts.add(layout)
+        persist(layouts)
+    }
+
+    fun delete(id: String) {
+        persist(all().filterNot { it.id == id })
+    }
+
+    private fun persist(layouts: List<CustomLayout>) {
+        val arr = JSONArray()
+        layouts.forEach { arr.put(it.toJson()) }
+        prefs.edit().putString(KEY, arr.toString()).apply()
+    }
+
+    private companion object {
+        const val KEY = "custom_layouts"
+    }
+}

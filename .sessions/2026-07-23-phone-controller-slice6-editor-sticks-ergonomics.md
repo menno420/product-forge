@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 6: layout editor, analog sticks, turbo/haptics, ergonomics (builder lane)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: fable-5 · high · feature build
 
@@ -91,3 +91,16 @@ gradle :capability-core:test :hid-core:test
 gradle :app:assembleDebug
 python3 bootstrap.py check --strict
 ```
+
+## Verify — results (run locally pre-push; CI re-proves on the canonical Gradle lanes)
+
+- **Pure-JVM lanes 38/38 green** (7-byte gamepad payload, both-sticks clamp,
+  right-stick independence, F-row contiguity, plus all prior suites).
+- **App module compiles against android.jar** (platform-34): MainActivity v3
+  (selection keys, editor flow, settings, per-host memory, stale-bond warning),
+  CustomPadView (play + edit), StickView, GyroDriver, TurboEngine, shared
+  SlidePadRouter, Haptics — 45 classes, zero errors.
+- `bootstrap.py check --strict` green at flip.
+- **Owner field confirmation mid-slice:** the v0.5.0 touchpad came alive after the
+  both-sides re-pair — the descriptor-cache diagnosis this slice's warning
+  automates was verified live before the feature landed.

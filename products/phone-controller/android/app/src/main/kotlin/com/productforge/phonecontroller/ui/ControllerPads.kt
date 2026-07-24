@@ -31,7 +31,6 @@ package com.productforge.phonecontroller.ui
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.Rect
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
@@ -58,12 +57,23 @@ interface PadHost {
     fun onMouseScroll(notches: Int)
     fun onMouseButton(button: MouseButton, down: Boolean)
     fun onMouseClick(button: MouseButton)
+    fun onLeftStick(x: Int, y: Int)
+    fun onRightStick(z: Int, rz: Int)
 }
 
 /** Touchpad tuning the host owns (persisted in activity prefs). */
 interface TouchpadConfig {
     /** Pointer-speed multiplier, 0.5..3.0. */
     var sensitivity: Float
+}
+
+/** Gyro control surface the Analog pad's toggle drives (owned by MainActivity). */
+interface GyroToggle {
+    val available: Boolean
+    val running: Boolean
+
+    /** Flip the driver; returns the resulting running state. */
+    fun toggle(): Boolean
 }
 
 object ControllerPads {
@@ -168,6 +178,71 @@ object ControllerPads {
         )
     }
 
+    // ---- analog pad (two sticks + slide-over buttons + gyro toggle) -------------------
+
+    fun buildAnalogPad(
+        context: Context,
+        host: PadHost,
+        deadzonePct: Float,
+        gyro: GyroToggle,
+        gyroLabel: String,
+        gyroOffLabel: String,
+    ): View {
+        val b = Builder(context)
+
+        val shoulders = b.row(
+            1f,
+            b.slide("L1") { d -> host.onGamepadButton(GamepadButton.L1, d) },
+            b.slide("L2") { d -> host.onGamepadButton(GamepadButton.L2, d) },
+            b.gap(1f),
+            b.slide("R2") { d -> host.onGamepadButton(GamepadButton.R2, d) },
+            b.slide("R1") { d -> host.onGamepadButton(GamepadButton.R1, d) },
+        )
+
+        val leftStick = StickView(context) { x, y -> host.onLeftStick(x, y) }
+            .apply { this.deadzonePct = deadzonePct }
+        val rightStick = StickView(context) { z, rz -> host.onRightStick(z, rz) }
+            .apply { this.deadzonePct = deadzonePct }
+
+        val diamond = b.grid3(
+            null, b.slide("Y") { d -> host.onGamepadButton(GamepadButton.Y, d) }, null,
+            b.slide("X") { d -> host.onGamepadButton(GamepadButton.X, d) }, null,
+            b.slide("B") { d -> host.onGamepadButton(GamepadButton.B, d) },
+            null, b.slide("A") { d -> host.onGamepadButton(GamepadButton.A, d) }, null,
+        )
+
+        val sticksRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(leftStick, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1.6f))
+            addView(diamond, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1.4f))
+            addView(rightStick, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1.6f))
+        }
+
+        val gyroButton = b.tap(if (gyro.running) gyroLabel else gyroOffLabel) {}
+            .apply { isEnabled = gyro.available }
+        gyroButton.setOnClickListener {
+            Haptics.tick(gyroButton)
+            val running = gyro.toggle()
+            gyroButton.text = if (running) gyroLabel else gyroOffLabel
+        }
+
+        val meta = b.row(
+            1f,
+            b.slide("SELECT") { d -> host.onGamepadButton(GamepadButton.SELECT, d) },
+            b.slide("START") { d -> host.onGamepadButton(GamepadButton.START, d) },
+            gyroButton,
+        )
+
+        return b.slidePadRoot(
+            LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(shoulders, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+                addView(sticksRow, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 3.2f))
+                addView(meta, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+            },
+        )
+    }
+
     // ---- typing keyboard (per-key holds, no slide) -----------------------------------
 
     fun buildKeyboardPad(context: Context, host: PadHost): View {
@@ -175,6 +250,11 @@ object ControllerPads {
         fun k(label: String, usage: Int, weight: Float = 1f) =
             b.hold(label, weight) { d -> host.onKey(usage, d) }
         fun letters(row: String) = row.map { c -> k(c.uppercaseChar().toString(), KeyUsage.letterUsage(c)) }
+
+        val r0 = mutableListOf<View>()
+        for (n in 1..12) {
+            r0.add(k("F$n", KeyUsage.F1 + (n - 1)).apply { textSize = 10f })
+        }
 
         val r1 = mutableListOf<View>(k("ESC", KeyUsage.ESCAPE, 1.4f))
         "1234567890".forEach { c -> r1.add(k(c.toString(), KeyUsage.digitUsage(c))) }
@@ -209,6 +289,7 @@ object ControllerPads {
 
         return LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
+            addView(b.row(0.7f, *r0.toTypedArray()))
             listOf(r1, r2, r3, r4, r5).forEach { cells ->
                 addView(b.row(1f, *cells.toTypedArray()))
             }
@@ -297,72 +378,6 @@ object ControllerPads {
     private const val SENS_MAX = 3.0f
     private const val SENS_STEPS = 25
 
-    /**
-     * Pad-level touch router for slide-over activation: hit-tests every active
-     * finger against the pad's registered buttons on each event and press/releases
-     * on the DIFF, so a finger gliding from ◀ to ▲ releases ◀ and presses ▲ without
-     * lifting. Buttons under this router are non-clickable (they'd otherwise
-     * capture the touch stream from finger-down and the glide would never be seen).
-     */
-    private class SlidePadRouter(
-        private val root: ViewGroup,
-        private val actions: Map<Button, (Boolean) -> Unit>,
-    ) : View.OnTouchListener {
-
-        private val byPointer = HashMap<Int, Button?>()
-        private val held = HashSet<Button>()
-        private val hitRect = Rect()
-
-        private fun buttonAt(x: Float, y: Float): Button? {
-            for (button in actions.keys) {
-                hitRect.set(0, 0, button.width, button.height)
-                root.offsetDescendantRectToMyCoords(button, hitRect)
-                if (hitRect.contains(x.toInt(), y.toInt())) return button
-            }
-            return null
-        }
-
-        @SuppressLint("ClickableViewAccessibility")
-        override fun onTouch(v: View, event: MotionEvent): Boolean {
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
-                    val i = event.actionIndex
-                    byPointer[event.getPointerId(i)] = buttonAt(event.getX(i), event.getY(i))
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    for (i in 0 until event.pointerCount) {
-                        byPointer[event.getPointerId(i)] = buttonAt(event.getX(i), event.getY(i))
-                    }
-                }
-                MotionEvent.ACTION_POINTER_UP -> {
-                    byPointer.remove(event.getPointerId(event.actionIndex))
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> byPointer.clear()
-                else -> return true
-            }
-            refresh()
-            return true
-        }
-
-        private fun refresh() {
-            val now = byPointer.values.filterNotNullTo(HashSet())
-            for (button in held) {
-                if (button !in now) {
-                    button.isPressed = false
-                    actions[button]?.invoke(false)
-                }
-            }
-            for (button in now) {
-                if (button !in held) {
-                    button.isPressed = true
-                    actions[button]?.invoke(true)
-                }
-            }
-            held.clear()
-            held.addAll(now)
-        }
-    }
-
     /** Small per-pad widget factory (dp math, button shapes, slide-pad assembly). */
     private class Builder(val context: Context) {
 
@@ -406,6 +421,7 @@ object ControllerPads {
                     when (event.actionMasked) {
                         MotionEvent.ACTION_DOWN -> {
                             v.isPressed = true
+                            Haptics.tick(v)
                             onChange(true)
                             true
                         }
@@ -422,7 +438,12 @@ object ControllerPads {
 
         /** A tap button (press+release pair is sent by the transport). */
         fun tap(label: String, onTap: () -> Unit): Button =
-            base(label).apply { setOnClickListener { onTap() } }
+            base(label).apply {
+                setOnClickListener {
+                    Haptics.tick(it)
+                    onTap()
+                }
+            }
 
         private fun base(label: String): Button = Button(context).apply {
             text = label

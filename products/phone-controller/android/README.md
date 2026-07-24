@@ -40,7 +40,7 @@ One SDP record (`SUBCLASS1_COMBO`, name **“Phone Controller”**) with four re
 |---|---|---|---|
 | 1 | Consumer Control | 1 byte (7 button bits + pad) | media remote (Slice-2 layout, unchanged) |
 | 2 | Keyboard | 8 bytes (modifiers + reserved + 6-key array) | Keyboard + Emu-keys pads — standard BT keyboard |
-| 3 | Gamepad | 5 bytes (16 buttons, hat D-pad, X/Y) | Full-gamepad + GBA pads |
+| 3 | Gamepad | 7 bytes (16 buttons, hat D-pad, sticks X/Y + Z/RZ) | Full-gamepad, GBA, Analog + custom pads |
 | 4 | Mouse (relative) | 4 bytes (3 buttons, dx, dy, wheel) | Touchpad pad — standard BT mouse |
 
 Gamepad button bits follow the Linux-kernel convention (bit0=A/south … bit11=Start,

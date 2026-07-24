@@ -189,6 +189,31 @@ class BluetoothHidDeviceTransport(
 
     // --- input APIs (all hold-capable: press and release are separate calls) --------
 
+    /**
+     * Zero every input collection while KEEPING the registration. Called on pad
+     * switches (views vanish mid-hold, so UP events never arrive) and after turbo
+     * cancellation — the no-stuck-inputs guarantee for layout changes.
+     */
+    @Synchronized
+    fun releaseHeldInputs() {
+        keyboard.clear()
+        gamepad.clear()
+        mouse.clear()
+        val proxy = hidDevice ?: return
+        val host = connectedHost ?: return
+        if (!registered) return
+        runCatching {
+            proxy.sendReport(host, ComboHidDescriptor.REPORT_ID_CONSUMER, MediaButton.RELEASE_REPORT)
+            proxy.sendReport(host, ComboHidDescriptor.REPORT_ID_KEYBOARD, keyboard.report())
+            proxy.sendReport(host, ComboHidDescriptor.REPORT_ID_GAMEPAD, gamepad.report())
+            proxy.sendReport(host, ComboHidDescriptor.REPORT_ID_MOUSE, mouse.report())
+        }
+    }
+
+    /** The connected host's MAC address (per-host prefs key), or null. */
+    @Synchronized
+    fun connectedHostAddress(): String? = connectedHost?.address
+
     /** Send a media button as a press-then-release pair (Report 1, tap semantics). */
     @Synchronized
     fun sendMediaButton(button: MediaButton): Boolean {
@@ -232,6 +257,22 @@ class BluetoothHidDeviceTransport(
         return sendOrReport(proxy, host, ComboHidDescriptor.REPORT_ID_GAMEPAD, gamepad.report(), "dpad ${direction.name}")
     }
 
+    /** Set the LEFT analog stick (Report 3, X/Y). Streams at touch rate — quiet on failure. */
+    @Synchronized
+    fun leftStick(x: Int, y: Int): Boolean {
+        val (proxy, host) = liveHost() ?: return false
+        gamepad.setLeftStick(x, y)
+        return timedSend(proxy, host, ComboHidDescriptor.REPORT_ID_GAMEPAD, gamepad.report())
+    }
+
+    /** Set the RIGHT analog stick (Report 3, Z/RZ). Streams at touch rate — quiet on failure. */
+    @Synchronized
+    fun rightStick(z: Int, rz: Int): Boolean {
+        val (proxy, host) = liveHost() ?: return false
+        gamepad.setRightStick(z, rz)
+        return timedSend(proxy, host, ComboHidDescriptor.REPORT_ID_GAMEPAD, gamepad.report())
+    }
+
     /** Press/release a mouse button (Report 4). Hold Left + move = drag-select. */
     @Synchronized
     fun mouseButton(button: MouseButton, down: Boolean): Boolean {
@@ -259,7 +300,7 @@ class BluetoothHidDeviceTransport(
         val (proxy, host) = liveHost() ?: return false
         // Quiet on failure: motion reports stream at touch-event rate, and a single
         // dropped delta is imperceptible — flooding onError would drown real faults.
-        return proxy.sendReport(host, ComboHidDescriptor.REPORT_ID_MOUSE, mouse.report(dx = dx, dy = dy))
+        return timedSend(proxy, host, ComboHidDescriptor.REPORT_ID_MOUSE, mouse.report(dx = dx, dy = dy))
     }
 
     /** Scroll the wheel by whole notches (Report 4; positive = content up). */
@@ -370,9 +411,41 @@ class BluetoothHidDeviceTransport(
         payload: ByteArray,
         what: String,
     ): Boolean {
-        val ok = runCatching { proxy.sendReport(host, reportId, payload) }.getOrDefault(false)
+        val ok = timedSend(proxy, host, reportId, payload)
         if (!ok) listener.onError("sendReport() rejected for $what")
         return ok
+    }
+
+    /** sendReport() wrapped in the rolling input-path latency measurement. */
+    private fun timedSend(
+        proxy: BluetoothHidDevice,
+        host: BluetoothDevice,
+        reportId: Int,
+        payload: ByteArray,
+    ): Boolean {
+        val start = System.nanoTime()
+        val ok = runCatching { proxy.sendReport(host, reportId, payload) }.getOrDefault(false)
+        val micros = (System.nanoTime() - start) / 1_000
+        latencyRing[latencyIndex % latencyRing.size] = micros
+        latencyIndex += 1
+        return ok
+    }
+
+    private val latencyRing = LongArray(128)
+    private var latencyIndex = 0
+
+    /**
+     * Rolling average of the app-side input path (UI call → sendReport handed to the
+     * Bluetooth stack), in microseconds. Measured, not asserted — link/host latency
+     * rides on top of this and is not observable from the device role.
+     */
+    @Synchronized
+    fun averageSendMicros(): Long {
+        val n = minOf(latencyIndex, latencyRing.size)
+        if (n == 0) return 0
+        var sum = 0L
+        for (i in 0 until n) sum += latencyRing[i]
+        return sum / n
     }
 
     /** All-zero reports for every collection — called before unregistering. */
@@ -392,4 +465,14 @@ class BluetoothHidDeviceTransport(
     @Suppress("DEPRECATION")
     private fun blePeripheralSupported(bt: BluetoothAdapter?): Boolean =
         runCatching { bt?.isMultipleAdvertisementSupported == true }.getOrDefault(false)
+
+    companion object {
+        /**
+         * Stable fingerprint of the CURRENT combo descriptor. Hosts cache the
+         * descriptor per bond at pairing time, so the UI remembers this value per
+         * connected host and warns when a bond predates the running descriptor
+         * (the "touchpad looked dead after the update" incident, 2026-07-23).
+         */
+        fun descriptorFingerprint(): Int = ComboHidDescriptor.DESCRIPTOR.contentHashCode()
+    }
 }
