@@ -163,6 +163,21 @@
     <string name="volkeys_l2r2">L2 / R2 (down / up)</string>
     <string name="volkeys_pages">PgUp / PgDn (up / down)</string>
 
+    <!-- Voice commands (Slice 11) -->
+    <string name="voice_title">Voice commands…</string>
+    <string name="voice_enable">Listen while the app is open</string>
+    <string name="voice_hint">Say a phrase, the action fires (as a quick tap) on the connected device. Speak in your own language — you define the phrases. Recognition takes about a second, so it suits media control and menus, not fast gameplay. The mic is only live while this app is on screen.</string>
+    <string name="voice_unavailable">This phone has no speech-recognition service available.</string>
+    <string name="voice_add">Add…</string>
+    <string name="voice_phrase_prompt">Phrase to listen for</string>
+    <string name="voice_remove">Remove</string>
+    <!-- %1$s = phrase, %2$s = action label. -->
+    <string name="voice_row_fmt">“%1$s” → %2$s</string>
+    <!-- %1$s = phrase, %2$s = action label. -->
+    <string name="voice_fired_fmt">Heard “%1$s” → %2$s</string>
+    <string name="voice_enabled_hint">Voice commands on — listening while the app is open.</string>
+    <string name="voice_mic_denied">Microphone permission denied — voice commands stay off.</string>
+
     <!-- About & Support (the fairness promise) -->
     <string name="about_title">About &amp; Support…</string>
     <string name="fairness_promise">Phone Controller is complete for free: every key, every pad, the full editor. No ads. No subscriptions. Ever.\n\nA one-time supporter pack (≈€1, cosmetic button styles only) will exist once the app reaches the Play Store — until then, preview the styles below for free.</string>

@@ -18,7 +18,7 @@ target. Based on the Ideas-Lab plan
 
 ## State
 
-**beta · field-verified against a real host.** Slices 1–10 are built and CI-proven: the
+**beta · field-verified against a real host.** Slices 1–11 are built and CI-proven: the
 capability verdict engine (portable Python + lockstep Kotlin port), the real
 `BluetoothHidDevice` transport, a **combo HID device** (keyboard + gamepad + mouse +
 media remote), the controller UI (ten built-in layouts + a full custom-layout
@@ -108,8 +108,12 @@ browser/files app when prompted (normal sideload flow — this app is not on a s
 
    In Settings you can also map the **hardware volume buttons** to inputs
    (L1/R1, L2/R2, or PgUp/PgDn — real physical shoulder buttons in landscape;
-   volume behaves normally when disconnected), set the **turbo rate**, and
-   **invert touchpad scrolling**.
+   volume behaves normally when disconnected), set the **turbo rate**,
+   **invert touchpad scrolling**, and define **voice commands** — say a phrase
+   in your own language and any action fires on the host (great as a hands-free
+   media remote or for accessibility; recognition takes ~a second, so it's for
+   menus and media, not twitch gameplay; mic is live only while the app is on
+   screen, recognition prefers on-device).
 
    **Fairness promise:** the app is complete for free — every key, pad and editor
    feature, no ads, no subscriptions. A one-time ~€1 supporter pack (cosmetic
