@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 13: gesture recorder + GESTURE binding (builder lane)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: fable-5 · high · feature build
 
@@ -61,4 +61,23 @@ app compiles vs android.jar; gate green; CI green; merge → tag
 
 ## Result
 
-_(fill on completion)_
+Shipped, all six blocks (A-F). Durable codec is CI-PROVEN: hid-core 59/59 (+6
+TouchGestureCodecTest — round-trip exact to the 4-decimal grid, multi-point/timing
+survival, fail-soft null on malformed/unknown-version/oversized, decode clamping).
+App compiles vs android.jar (79 classes).
+
+Guard recipes: GESTURE inert in HID/remote resolveRaw (and excluded from macro/
+voice step pickers) — meaningful only in overlay mode; overlay TapDispatch resolves
+the bound gesture ONCE at bind time (missing/deleted → tap-at-position fallback);
+recorder thins samples (≥0.5% space, ≤200 pts/stroke) so long drags stay under the
+codec cap, and floors tap durations to 50 ms so dispatched taps register; recorder
+runs as a full-screen Dialog on THIS phone (no overlay permission just to author);
+manager + pickers all label→handler / index-safe.
+
+Model note: a recorded swipe is exactly a multi-point GestureStroke — the Slice-12
+model needed zero changes, as designed. Codec doubles as the future gesture-share
+format (same envelope philosophy as layouts).
+
+v0.13.0 (versionCode 11), stable-signed, no HID descriptor change → installs in
+place, no re-pair. Deferred (recorded): per-game auto-profiles, multi-finger
+recording, gesture share/import UI, Shizuku. PR/tag/release: status heartbeat.

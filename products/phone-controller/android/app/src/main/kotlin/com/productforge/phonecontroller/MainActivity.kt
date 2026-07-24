@@ -18,6 +18,7 @@ package com.productforge.phonecontroller
 import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.Dialog
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
@@ -72,8 +73,12 @@ import com.productforge.phonecontroller.ui.CustomPadView
 import com.productforge.phonecontroller.ui.GyroDriver
 import com.productforge.phonecontroller.ui.GyroToggle
 import com.productforge.phonecontroller.ui.Haptics
+import com.productforge.phonecontroller.overlay.GestureRecorderView
+import com.productforge.phonecontroller.overlay.GestureStore
 import com.productforge.phonecontroller.overlay.OverlayPlayService
+import com.productforge.phonecontroller.overlay.SavedGesture
 import com.productforge.phonecontroller.overlay.TapAccessibilityService
+import com.productforge.phonecontroller.hid.TouchGestureCodec
 import com.productforge.phonecontroller.ui.MacroRunner
 import com.productforge.phonecontroller.ui.PadHost
 import com.productforge.phonecontroller.ui.Supporter
@@ -128,6 +133,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         }
     }
 
+    private val gestureStore by lazy { GestureStore(prefs()) }
     private val voiceStore by lazy { VoiceStore(prefs()) }
     private val voiceDriver by lazy {
         VoiceDriver(this, { voiceStore.all() }) { command -> fireVoiceCommand(command) }
@@ -655,6 +661,11 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                 PadActionType.MACRO -> {
                     ({ down -> if (down) macroRunner.play(code) })
                 }
+                PadActionType.GESTURE -> {
+                    // Inert in remote HID mode — a screen gesture only means
+                    // something in Play-on-this-phone overlay mode (handled there).
+                    ({ _ -> })
+                }
             }
         }.getOrNull()
 
@@ -1070,12 +1081,16 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             "WIN/CMD" to KeyUsage.MOD_LEFT_GUI.toString(),
         )
         PadActionType.KEY -> keyChoices()
-        PadActionType.COMBO, PadActionType.MACRO -> emptyList()
+        PadActionType.COMBO, PadActionType.MACRO, PadActionType.GESTURE -> emptyList()
     }
 
     private fun pickActionCode(spec: PadButtonSpec, type: PadActionType) {
         if (type == PadActionType.COMBO) {
             pickCombo(spec)
+            return
+        }
+        if (type == PadActionType.GESTURE) {
+            pickGesture(spec)
             return
         }
         if (type == PadActionType.MACRO) {
@@ -1096,6 +1111,126 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                 spec.label = label
                 editingView?.rebuild()
             }
+            .show()
+    }
+
+    // --- gesture recorder + binding (Slice 13) --------------------------------------
+
+    /** Bind a GESTURE action: pick a saved gesture, or record a new one. */
+    private fun pickGesture(spec: PadButtonSpec) {
+        val saved = gestureStore.all()
+        val labels = saved.map { it.name } + getString(R.string.gesture_record_new)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.gesture_pick)
+            .setItems(labels.toTypedArray()) { _, which ->
+                if (which < saved.size) {
+                    bindGesture(spec, saved[which])
+                } else {
+                    recordGestureDialog { g -> bindGesture(spec, g) }
+                }
+            }
+            .show()
+    }
+
+    private fun bindGesture(spec: PadButtonSpec, g: SavedGesture) {
+        spec.action = PadAction(PadActionType.GESTURE, g.id)
+        spec.label = g.name
+        editingView?.rebuild()
+    }
+
+    /**
+     * Full-screen recorder: perform the gesture on the surface (each finger-down to
+     * finger-up is a stroke), then Save it named. Runs as a full-screen Dialog on
+     * this phone's own screen — no overlay permission needed just to author.
+     */
+    private fun recordGestureDialog(onSaved: (SavedGesture) -> Unit) {
+        val recorder = GestureRecorderView(this)
+        val hint = TextView(this).apply {
+            text = getString(R.string.gesture_record_hint)
+            textSize = 12f
+            setTextColor(0xFFECEFF1.toInt())
+            setPadding(dp(12), dp(6), dp(12), dp(6))
+        }
+        val dialog = Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+
+        fun chip(labelRes: Int, onClick: () -> Unit) = Button(this).apply {
+            text = getString(labelRes)
+            isAllCaps = false
+            textSize = 13f
+            ButtonStyler.flatStyle(this, ButtonStyler.SURFACE, cornerDp = 16f)
+            setOnClickListener { onClick() }
+        }
+
+        val bar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setBackgroundColor(0xCC15181E.toInt())
+            addView(hint, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(chip(R.string.gesture_retry) { recorder.clear() })
+            addView(chip(R.string.gesture_save) {
+                val gesture = recorder.buildGesture()
+                if (gesture == null) {
+                    setDetail(getString(R.string.gesture_empty))
+                } else {
+                    promptText(getString(R.string.gesture_name_prompt), "") { name ->
+                        val saved = SavedGesture(
+                            "gs_${System.currentTimeMillis()}",
+                            name.ifBlank { getString(R.string.gesture_default_name) },
+                            TouchGestureCodec.encode(gesture),
+                        )
+                        gestureStore.save(saved)
+                        dialog.dismiss()
+                        onSaved(saved)
+                    }
+                }
+            })
+            addView(chip(android.R.string.cancel) { dialog.dismiss() })
+        }
+
+        val root = FrameLayout(this).apply {
+            addView(recorder, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT,
+            ))
+            addView(bar, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM,
+            ))
+        }
+        dialog.setContentView(root)
+        dialog.show()
+    }
+
+    /** Recorded-gestures manager (Settings entry): list, rename, delete, record. */
+    private fun gesturesManagerDialog() {
+        val saved = gestureStore.all()
+        val labels = saved.map { getString(R.string.gesture_row_fmt, it.name, it.durationMs()) } +
+            getString(R.string.gesture_record_new)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.gestures_title)
+            .setItems(labels.toTypedArray()) { _, which ->
+                if (which >= saved.size) {
+                    recordGestureDialog { gesturesManagerDialog() }
+                    return@setItems
+                }
+                val g = saved[which]
+                AlertDialog.Builder(this)
+                    .setTitle(g.name)
+                    .setItems(
+                        arrayOf(getString(R.string.layout_rename), getString(R.string.layout_delete)),
+                    ) { _, action ->
+                        when (action) {
+                            0 -> promptText(getString(R.string.layout_rename), g.name) { name ->
+                                gestureStore.save(g.copy(name = name.ifBlank { g.name }))
+                                gesturesManagerDialog()
+                            }
+                            1 -> {
+                                gestureStore.delete(g.id)
+                                gesturesManagerDialog()
+                            }
+                        }
+                    }
+                    .show()
+            }
+            .setNegativeButton(android.R.string.ok, null)
             .show()
     }
 
@@ -1150,7 +1285,9 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
 
     /** Pick one macro step: type (no MACRO nesting) → code. COMBO steps use presets. */
     private fun pickStepAction(onPicked: (String, String, String) -> Unit) {
-        val types = PadActionType.entries.filter { it != PadActionType.MACRO }
+        // GESTURE excluded: macro steps + voice run in HID/remote context where a
+        // screen gesture is inert (it only means something in overlay mode).
+        val types = PadActionType.entries.filter { it != PadActionType.MACRO && it != PadActionType.GESTURE }
         AlertDialog.Builder(this)
             .setTitle(R.string.macro_step_type)
             .setItems(types.map { it.name }.toTypedArray()) { _, ti ->
@@ -1376,6 +1513,19 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
             ).apply { topMargin = dp(8) },
+        )
+
+        content.addView(
+            Button(this).apply {
+                text = getString(R.string.gestures_title)
+                isAllCaps = false
+                textSize = 13f
+                ButtonStyler.flatStyle(this, ButtonStyler.SURFACE, cornerDp = 18f)
+                setOnClickListener { gesturesManagerDialog() }
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+            ),
         )
 
         content.addView(
