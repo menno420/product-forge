@@ -72,6 +72,7 @@ import com.productforge.phonecontroller.ui.ControllerPads
 import com.productforge.phonecontroller.ui.CustomPadView
 import com.productforge.phonecontroller.ui.GyroDriver
 import com.productforge.phonecontroller.ui.GyroToggle
+import com.productforge.phonecontroller.ui.GyroVisualizerView
 import com.productforge.phonecontroller.ui.Haptics
 import com.productforge.phonecontroller.overlay.GestureRecorderView
 import com.productforge.phonecontroller.overlay.GestureStore
@@ -167,8 +168,71 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         super.onPause()
     }
 
+    // Gyro routing (Slice 14): the driver emits a normalized vector; we route it to
+    // the chosen target only while ARMED, and always feed the live visualizer.
+    private enum class GyroTarget { RIGHT_STICK, LEFT_STICK, MOUSE }
+
+    private var gyroArmed = false
+    private var gyroPreview = false
+    private var gyroVisualizer: GyroVisualizerView? = null
+    private var gyroMouseRemX = 0f
+    private var gyroMouseRemY = 0f
+
     private val gyroDriver by lazy {
-        GyroDriver(this) { z, rz -> transport?.rightStick(z, rz) }
+        GyroDriver(this) { nx, ny -> onGyroSample(nx, ny) }
+    }
+
+    private fun gyroTarget(): GyroTarget =
+        GyroTarget.entries.getOrElse(prefs().getInt(PREF_GYRO_TARGET, 0)) { GyroTarget.RIGHT_STICK }
+
+    /** Push driver settings from prefs (called before starting the sensor). */
+    private fun applyGyroSettings() {
+        // Sensitivity 0..100 → full-tilt 40°(least) .. 10°(most).
+        val sens = prefs().getInt(PREF_GYRO_SENS, 50).coerceIn(0, 100)
+        gyroDriver.fullTiltDegrees = 40f - (sens / 100f) * 30f
+        gyroDriver.invertX = prefs().getBoolean(PREF_GYRO_INV_X, false)
+        gyroDriver.invertY = prefs().getBoolean(PREF_GYRO_INV_Y, false)
+    }
+
+    /** Start/stop the sensor to match armed||preview intent. */
+    private fun syncGyroSensor() {
+        val want = gyroArmed || gyroPreview
+        if (want && !gyroDriver.running) {
+            applyGyroSettings()
+            gyroMouseRemX = 0f; gyroMouseRemY = 0f
+            gyroDriver.start()
+        } else if (!want && gyroDriver.running) {
+            gyroDriver.stop()
+        }
+    }
+
+    /** Full disarm + sensor off (pad switch, disconnect, editor, destroy). */
+    private fun stopGyro() {
+        gyroArmed = false
+        gyroPreview = false
+        gyroDriver.stop()
+    }
+
+    private fun onGyroSample(nx: Float, ny: Float) {
+        gyroVisualizer?.update(nx, ny)
+        if (!gyroArmed) return
+        when (gyroTarget()) {
+            GyroTarget.RIGHT_STICK ->
+                transport?.rightStick((nx * 127f).toInt().coerceIn(-127, 127), (ny * 127f).toInt().coerceIn(-127, 127))
+            GyroTarget.LEFT_STICK ->
+                transport?.leftStick((nx * 127f).toInt().coerceIn(-127, 127), (ny * 127f).toInt().coerceIn(-127, 127))
+            GyroTarget.MOUSE -> {
+                // Rate mapping: tilt = pointer velocity, remainder-carried (touchpad style).
+                gyroMouseRemX += nx * GYRO_MOUSE_SPEED
+                gyroMouseRemY += ny * GYRO_MOUSE_SPEED
+                val dx = gyroMouseRemX.toInt()
+                val dy = gyroMouseRemY.toInt()
+                if (dx != 0 || dy != 0) {
+                    gyroMouseRemX -= dx; gyroMouseRemY -= dy
+                    transport?.mouseMove(dx, dy)
+                }
+            }
+        }
     }
 
     private val textTyper by lazy {
@@ -189,11 +253,14 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
 
     private val gyroToggle = object : GyroToggle {
         override val available: Boolean get() = gyroDriver.available
-        override val running: Boolean get() = gyroDriver.running
+        override val running: Boolean get() = gyroArmed
         override fun toggle(): Boolean {
-            if (gyroDriver.running) gyroDriver.stop() else gyroDriver.start()
-            return gyroDriver.running
+            gyroArmed = !gyroArmed
+            gyroMouseRemX = 0f; gyroMouseRemY = 0f
+            syncGyroSensor()
+            return gyroArmed
         }
+        override fun recenter() = gyroDriver.recenter()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -217,7 +284,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         voiceDriver.stop()
         textTyper.cancel()
         macroRunner.cancel()
-        gyroDriver.stop()
+        stopGyro()
         turbo.cancelAll()
         transport?.stop()
         transport = null
@@ -434,7 +501,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                 textTyper.cancel()
                 macroRunner.cancel()
                 turbo.cancelAll()
-                gyroDriver.stop()
+                stopGyro()
                 setStatus(getString(R.string.disconnected_hint))
             }
         }
@@ -563,7 +630,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         // everything and stop the auto-repeaters/sensor first (guard recipe).
         macroRunner.cancel()
         turbo.cancelAll()
-        gyroDriver.stop()
+        stopGyro()
         transport?.releaseHeldInputs()
         editingLayout = null
         editingView = null
@@ -800,7 +867,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
 
     private fun startEditor(layout: CustomLayout) {
         turbo.cancelAll()
-        gyroDriver.stop()
+        stopGyro()
         transport?.releaseHeldInputs()
         editingLayout = layout
 
@@ -1504,6 +1571,19 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
 
         content.addView(
             Button(this).apply {
+                text = getString(R.string.gyro_settings)
+                isAllCaps = false
+                textSize = 13f
+                ButtonStyler.flatStyle(this, ButtonStyler.SURFACE, cornerDp = 18f)
+                setOnClickListener { gyroSettingsDialog() }
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(8) },
+        )
+
+        content.addView(
+            Button(this).apply {
                 text = getString(R.string.play_on_phone)
                 isAllCaps = false
                 textSize = 13f
@@ -1561,6 +1641,113 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             .setNegativeButton(android.R.string.ok) { _, _ ->
                 // Deadzone applies on pad rebuild; refresh if the analog pad is live.
                 if (currentSelection == "b:${Pad.ANALOG.ordinal}") showSelection(currentSelection)
+            }
+            .show()
+    }
+
+    /**
+     * Gyro settings (Slice 14) — pick what tilt drives, sensitivity, invert, and set
+     * the neutral; a live visualizer runs the sensor in preview so you SEE the output
+     * move as you tilt, even before connecting.
+     */
+    private fun gyroSettingsDialog() {
+        val pad = dp(16)
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, 0)
+        }
+        if (!gyroDriver.available) {
+            content.addView(TextView(this).apply {
+                text = getString(R.string.gyro_unavailable); textSize = 13f
+            })
+            AlertDialog.Builder(this).setTitle(R.string.gyro_settings)
+                .setView(ScrollView(this).apply { addView(content) })
+                .setPositiveButton(android.R.string.ok, null).show()
+            return
+        }
+
+        val targetLabels = listOf(
+            getString(R.string.gyro_target_rstick),
+            getString(R.string.gyro_target_lstick),
+            getString(R.string.gyro_target_mouse),
+        )
+        val targetButton = Button(this).apply {
+            isAllCaps = false; textSize = 13f
+            ButtonStyler.flatStyle(this, ButtonStyler.SURFACE, cornerDp = 18f)
+            text = getString(R.string.gyro_target_fmt, targetLabels[prefs().getInt(PREF_GYRO_TARGET, 0).coerceIn(0, 2)])
+            setOnClickListener {
+                AlertDialog.Builder(this@MainActivity)
+                    .setTitle(R.string.gyro_target_title)
+                    .setItems(targetLabels.toTypedArray()) { _, which ->
+                        prefs().edit().putInt(PREF_GYRO_TARGET, which).apply()
+                        gyroMouseRemX = 0f; gyroMouseRemY = 0f
+                        text = getString(R.string.gyro_target_fmt, targetLabels[which])
+                    }.show()
+            }
+        }
+        content.addView(targetButton)
+
+        val sensLabel = TextView(this).apply {
+            text = getString(R.string.gyro_sensitivity); textSize = 13f
+            setPadding(0, dp(12), 0, 0)
+        }
+        content.addView(sensLabel)
+        content.addView(SeekBar(this).apply {
+            max = 100
+            progress = prefs().getInt(PREF_GYRO_SENS, 50)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(sb: SeekBar?, value: Int, fromUser: Boolean) {
+                    prefs().edit().putInt(PREF_GYRO_SENS, value).apply()
+                    applyGyroSettings()
+                }
+                override fun onStartTrackingTouch(sb: SeekBar?) {}
+                override fun onStopTrackingTouch(sb: SeekBar?) {}
+            })
+        })
+
+        content.addView(Switch(this).apply {
+            text = getString(R.string.gyro_invert_x)
+            isChecked = prefs().getBoolean(PREF_GYRO_INV_X, false)
+            setOnCheckedChangeListener { _, c -> prefs().edit().putBoolean(PREF_GYRO_INV_X, c).apply(); applyGyroSettings() }
+            setPadding(0, dp(8), 0, 0)
+        })
+        content.addView(Switch(this).apply {
+            text = getString(R.string.gyro_invert_y)
+            isChecked = prefs().getBoolean(PREF_GYRO_INV_Y, false)
+            setOnCheckedChangeListener { _, c -> prefs().edit().putBoolean(PREF_GYRO_INV_Y, c).apply(); applyGyroSettings() }
+        })
+
+        val visualizer = GyroVisualizerView(this)
+        content.addView(visualizer, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(150)).apply {
+            topMargin = dp(12)
+        })
+        content.addView(TextView(this).apply {
+            text = getString(R.string.gyro_hint); textSize = 12f
+            setTextColor(0xFF9AA7B0.toInt()); setPadding(0, dp(6), 0, 0)
+        })
+        content.addView(Button(this).apply {
+            text = getString(R.string.gyro_recenter)
+            isAllCaps = false; textSize = 13f
+            ButtonStyler.flatStyle(this, ButtonStyler.SURFACE, cornerDp = 18f)
+            setOnClickListener { gyroDriver.recenter() }
+        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = dp(8)
+        })
+
+        // Preview: run the sensor + feed the visualizer while the dialog is open.
+        gyroVisualizer = visualizer
+        gyroPreview = true
+        applyGyroSettings()
+        syncGyroSensor()
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.gyro_settings)
+            .setView(ScrollView(this).apply { addView(content) })
+            .setPositiveButton(android.R.string.ok, null)
+            .setOnDismissListener {
+                gyroVisualizer = null
+                gyroPreview = false
+                syncGyroSensor()
             }
             .show()
     }
@@ -1972,6 +2159,9 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         const val SWATCH_COLUMNS = 4
         const val PAUSE_STEP_MS = 400L
         const val VOICE_TAP_MS = 120L
+
+        /** Mouse counts per full-tilt sample (~50 Hz) when gyro drives the pointer. */
+        const val GYRO_MOUSE_SPEED = 14f
         const val PREF_SELECTION = "layout_sel"
         const val PREF_SENSITIVITY = "touchpad_sensitivity"
         const val PREF_HAPTICS = "haptics"
@@ -1986,6 +2176,10 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         const val PREF_SCROLL_INVERT = "scroll_invert"
         const val PREF_VOLKEYS = "volume_keys_mode"
         const val PREF_VOICE = "voice_enabled"
+        const val PREF_GYRO_TARGET = "gyro_target"
+        const val PREF_GYRO_SENS = "gyro_sensitivity"
+        const val PREF_GYRO_INV_X = "gyro_invert_x"
+        const val PREF_GYRO_INV_Y = "gyro_invert_y"
 
         /** Swap to Ko-fi/GitHub Sponsors when the owner creates one (Slice-9 card). */
         const val SUPPORT_URL = "https://github.com/menno420/product-forge"

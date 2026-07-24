@@ -48,6 +48,21 @@
     <string name="gyro_on">Gyro ✓</string>
     <string name="gyro_off">Gyro</string>
 
+    <!-- Gyro settings (Slice 14) -->
+    <string name="gyro_settings">Gyro…</string>
+    <string name="gyro_unavailable">This phone has no motion sensor gyro can use.</string>
+    <string name="gyro_target_title">What should tilt control?</string>
+    <!-- %1$s = current target label. -->
+    <string name="gyro_target_fmt">Tilt controls: %1$s</string>
+    <string name="gyro_target_rstick">Right stick (aim)</string>
+    <string name="gyro_target_lstick">Left stick (move)</string>
+    <string name="gyro_target_mouse">Mouse pointer</string>
+    <string name="gyro_sensitivity">Sensitivity (how far to tilt for full input)</string>
+    <string name="gyro_invert_x">Invert left / right</string>
+    <string name="gyro_invert_y">Invert up / down</string>
+    <string name="gyro_recenter">Recenter (set neutral to current hold)</string>
+    <string name="gyro_hint">The dot shows what tilt is sending right now. Turn gyro on with the Gyro button on the Analog-sticks pad (long-press it to recenter mid-game). Neutral “0 input” is wherever you hold the phone when you turn gyro on or recenter.</string>
+
     <!-- NDS pad -->
     <string name="layout_nds">NDS (touch + pad)</string>
     <string name="pen_on">Pen ✓</string>
