@@ -18,15 +18,16 @@ target. Based on the Ideas-Lab plan
 
 ## State
 
-**beta · field-verified against a real host.** Slices 1–5 are built and CI-proven: the
+**beta · field-verified against a real host.** Slices 1–8 are built and CI-proven: the
 capability verdict engine (portable Python + lockstep Kotlin port), the real
 `BluetoothHidDevice` transport, a **combo HID device** (keyboard + gamepad + mouse +
-media remote), the controller UI (six layouts, slide-over game pads, landscape mode,
-rotation-safe connection), and a release pipeline that publishes a signed, installable
-APK. Owner playtest 2026-07-23 (v0.4.0, laptop host): pairing ✓, keyboard input ✓,
-GBA emulator driven via keys ✓, gamepad reports confirmed live on a HID gamepad
-tester ✓ (emulator-side controller *binding* is per-emulator configuration — map the
-buttons once in its input settings).
+media remote), the controller UI (eight built-in layouts + a full custom-layout
+editor, slide-over game pads, analog sticks + gyro, dark controller theme, focus
+mode, landscape mode, rotation-safe connection), and a release pipeline that
+publishes a signed, installable APK. Owner playtest 2026-07-23 (v0.4.0, laptop
+host): pairing ✓, keyboard input ✓, GBA emulator driven via keys ✓, gamepad reports
+confirmed live on a HID gamepad tester ✓ (emulator-side controller *binding* is
+per-emulator configuration — map the buttons once in its input settings).
 
 ## Get the app (Android 9+)
 
@@ -69,6 +70,12 @@ browser/files app when prompted (normal sideload flow — this app is not on a s
    - **Touchpad** — drag to move the host's pointer (on an Android target a system
      cursor appears), tap = click, two-finger tap = right-click, two-finger drag =
      scroll (natural direction), hold LEFT + drag = drag-select; speed slider below.
+   - **NDS (touch + pad)** — a Nintendo-DS-style combo: touch-screen area plus
+     D-pad, X/A/B/Y (Nintendo positions), L/R, Start/Select. The touch area
+     defaults to **Pen** mode — finger contact = held left button, so drags DRAW
+     on the emulator's touch screen like a stylus; toggle Pen off to hover the
+     cursor without pressing. Portrait stacks screen-over-buttons like a held DS;
+     landscape puts the clusters beside the screen.
    - **Keyboard** — full QWERTY with digits, punctuation, arrows and hold-capable
      Shift/Ctrl/Alt (two-thumb chords); held keys auto-repeat via the host OS.
    - **Emu keys** — arrows, Z/X/A/S, Enter/Space/Shift/Esc/Tab (the classic emulator
@@ -77,7 +84,11 @@ browser/files app when prompted (normal sideload flow — this app is not on a s
    Buttons **hold** (a held HID report, not repeated taps), and on the game pads you
    can **slide between buttons without lifting** — glide across the D-pad like on a
    real controller. Landscape is fully supported (side panel + full-height pad), and
-   rotating does not drop the connection.
+   rotating does not drop the connection. The whole app wears a dark controller
+   theme; **Settings → App background…** recolors it (custom layouts can still
+   override per-layout), and the **Focus** button enters pure controller mode —
+   every control except the pad disappears (plus immersive full-screen) until you
+   tap the small ⛶ chip at the top.
 5. **In the emulator** (e.g. RetroArch): Settings → Input → Port 1 Controls → map each
    button by pressing it on the phone — or use the Emu-keys pad with the emulator's
    default keyboard binds and map nothing at all. (Emulators generally don't
@@ -123,19 +134,20 @@ products/phone-controller/
     └── app/              # the controller app: transport + pads UI (APK)
 ```
 
-## Build ladder / next slices (from the idea doc)
+## Build ladder / next slices
 
-Slices 1–5 done: scaffold → working core → tests → README → release artifact →
-**mouse + full keyboard + layout presets + slide-over + landscape** (Slice 5, owner
-feature asks 2026-07-23). Remaining, in the idea doc's order:
+Slices 1–8 done: scaffold → working core → tests → README → release artifact (S4) →
+mouse + full keyboard + layout presets + slide-over + landscape (S5) → **custom
+layout editor** + turbo + analog sticks + gyro + per-host memory + stale-pairing
+warning (S6, the idea doc's items 6/7/8/10) → per-button colors / shapes / opacity /
+text size + duplicates + pad backgrounds (S7) → dark controller theme + focus mode +
+app-wide background + NDS touch-pad + pen mode (S8, owner recording feedback).
+Remaining candidates:
 
-6. **Customizable layout editor** (button grid → HID keycodes) — the differentiator:
-   no mainstream app is *both* serverless true-BT-HID *and* fully customizable; the
-   Slice-5 preset registry is its forerunner.
-7. Profiles (save / load / switch per target). 8. Analog stick on the gamepad's X/Y
-   (the descriptor already carries centered axes). 9. Foreground volume-key-as-input
-   mapping. 10. On-device latency measurement. Scroll-direction invert toggle.
-   BLE-HOGP fallback transport for `BLE_HOGP_FALLBACK`-verdict devices.
+- Foreground volume-key-as-input mapping (idea doc item 9).
+- Scroll-direction invert toggle; macros (multi-key sequences on one button);
+  long-press key alternates; layout import/export (share as text).
+- BLE-HOGP fallback transport for `BLE_HOGP_FALLBACK`-verdict devices.
 
 `iOS-as-controller` is deferred (network companion-receiver only); background
 hardware-button capture is blocked by platform policy. See the idea doc for sources and

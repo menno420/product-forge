@@ -43,7 +43,8 @@ class StickView(context: Context, private val listener: Listener) : View(context
         strokeWidth = 3f
     }
     private val thumbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0x66505050
+        // Light enough to stay visible on the Slice-8 dark background.
+        color = 0x88A9B4C0.toInt()
         style = Paint.Style.FILL
     }
 
