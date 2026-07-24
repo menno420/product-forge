@@ -220,18 +220,33 @@ class GamepadStateTest {
     }
 
     @Test
-    fun `axes clamp to the descriptor's logical range and clear centers everything`() {
+    fun `both sticks clamp to the descriptor's logical range and clear centers everything`() {
         val gp = GamepadState()
-        gp.setAxes(500, -500)
+        gp.setLeftStick(500, -500)
+        gp.setRightStick(-500, 500)
         var r = gp.report()
-        assertEquals(127, r[3].toInt())
-        assertEquals(-127, r[4].toInt())
+        assertEquals(127, r[3].toInt())   // X
+        assertEquals(-127, r[4].toInt())  // Y
+        assertEquals(-127, r[5].toInt())  // Z  (right stick horizontal)
+        assertEquals(127, r[6].toInt())   // RZ (right stick vertical)
         gp.buttonDown(GamepadButton.B)
         gp.dpad(DpadDirection.UP, true)
         gp.clear()
         assertTrue(gp.isNeutral())
         r = gp.report()
         assertContentEquals(ByteArray(ComboHidDescriptor.GAMEPAD_REPORT_BYTES), r)
+    }
+
+    @Test
+    fun `right stick rides the z and rz payload slots independently of the left`() {
+        val gp = GamepadState()
+        gp.setRightStick(64, -64)
+        val r = gp.report()
+        assertEquals(0, r[3].toInt())
+        assertEquals(0, r[4].toInt())
+        assertEquals(64, r[5].toInt())
+        assertEquals(-64, r[6].toInt())
+        assertEquals(ComboHidDescriptor.GAMEPAD_REPORT_BYTES, r.size)
     }
 
     @Test
@@ -310,5 +325,12 @@ class KeyUsageMapTest {
         assertEquals(0x35, KeyUsage.GRAVE)
         assertEquals(0x38, KeyUsage.SLASH)
         assertEquals(0x4C, KeyUsage.DELETE_FORWARD)
+    }
+
+    @Test
+    fun `function-key row spans f1 to f12 contiguously`() {
+        assertEquals(0x3A, KeyUsage.F1)
+        assertEquals(0x45, KeyUsage.F12)
+        assertEquals(KeyUsage.F12, KeyUsage.F1 + 11)
     }
 }

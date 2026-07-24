@@ -10,10 +10,13 @@
  *   Report 2 — standard keyboard (8-byte boot-style payload: modifiers + reserved +
  *              6-key rollover array). Every receiver in the Slice-1 matrix that
  *              accepts a BT keyboard consumes this, and every emulator can map keys;
- *   Report 3 — gamepad: 16 buttons + a hat-switch D-pad + centered X/Y axes. Android
- *              receivers map this through the kernel HID-gamepad convention to
- *              KEYCODE_BUTTON_A…START / AXIS_HAT_X/Y, which is what emulator
- *              controller auto-detection listens for;
+ *   Report 3 — gamepad: 16 buttons + a hat-switch D-pad + TWO analog sticks
+ *              (Slice 6): left = X/Y, right = Z/RZ — Android documents
+ *              AXIS_Z/AXIS_RZ as the right analog stick, so both sticks map on
+ *              Android receivers with no custom keylayout. Kernel-convention
+ *              buttons yield KEYCODE_BUTTON_A…START; the hat becomes D-pad events.
+ *              (Analog triggers deferred — digital L2/R2 bits cover the shoulders;
+ *              see the Slice-6 session card's decide-and-flag.);
  *   Report 4 — relative mouse (Slice 5): 3 buttons + X/Y/wheel deltas — the shape
  *              every PC and Android host accepts from a BT mouse (an Android target
  *              shows a system pointer the moment it connects). Drives the touchpad
@@ -50,7 +53,7 @@ object ComboHidDescriptor {
     /** Payload length per report (Report ID byte excluded — sendReport takes it apart). */
     const val CONSUMER_REPORT_BYTES: Int = 1
     const val KEYBOARD_REPORT_BYTES: Int = 8
-    const val GAMEPAD_REPORT_BYTES: Int = 5
+    const val GAMEPAD_REPORT_BYTES: Int = 7
     const val MOUSE_REPORT_BYTES: Int = 4
 
     /**
@@ -139,13 +142,15 @@ object ComboHidDescriptor {
         0x81.toByte(), 0x01.toByte(),             //     Input (Const) — 4-bit pad
         0x65.toByte(), 0x00.toByte(),             //     Unit (none) — reset after hat
         0x45.toByte(), 0x00.toByte(),             //     Physical Maximum (0) — reset
-        0x09.toByte(), 0x30.toByte(),             //     Usage (X)
+        0x09.toByte(), 0x30.toByte(),             //     Usage (X)  — left stick
         0x09.toByte(), 0x31.toByte(),             //     Usage (Y)
+        0x09.toByte(), 0x32.toByte(),             //     Usage (Z)  — right stick (Android AXIS_Z)
+        0x09.toByte(), 0x35.toByte(),             //     Usage (Rz)               (Android AXIS_RZ)
         0x15.toByte(), 0x81.toByte(),             //     Logical Minimum (-127)
         0x25.toByte(), 0x7F.toByte(),             //     Logical Maximum (127)
         0x75.toByte(), 0x08.toByte(),             //     Report Size (8)
-        0x95.toByte(), 0x02.toByte(),             //     Report Count (2)
-        0x81.toByte(), 0x02.toByte(),             //     Input (Data,Var,Abs) — X, Y
+        0x95.toByte(), 0x04.toByte(),             //     Report Count (4)
+        0x81.toByte(), 0x02.toByte(),             //     Input (Data,Var,Abs) — X,Y,Z,Rz
         0xC0.toByte(),                            //   End Collection
 
         // ---- Report 4: relative mouse (Slice 5 — 3 buttons + X/Y/wheel deltas) ----
@@ -263,6 +268,8 @@ object KeyUsage {
     const val COMMA = 0x36
     const val PERIOD = 0x37
     const val SLASH = 0x38
+    const val F1 = 0x3A          // F1..F12 run 0x3A..0x45 (F1 + n-1)
+    const val F12 = 0x45
     const val DELETE_FORWARD = 0x4C
     const val ARROW_RIGHT = 0x4F
     const val ARROW_LEFT = 0x50

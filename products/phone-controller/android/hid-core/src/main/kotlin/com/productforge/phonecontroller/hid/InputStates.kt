@@ -61,13 +61,15 @@ class KeyboardState {
 }
 
 /**
- * Gamepad state → the 5-byte Report-3 payload: [buttonsLo, buttonsHi, hat, x, y].
+ * Gamepad state → the 7-byte Report-3 payload:
+ * [buttonsLo, buttonsHi, hat, x, y, z, rz].
  *
  * The D-pad is tracked as four held directions and folded into the hat-switch value
  * (1=N clockwise to 8=NW; 0 = the descriptor's null state = released). Opposite
  * directions cancel — up+down or left+right read as neutral on that axis, so a
- * finger-roll across the pad can never report an impossible combination. X/Y stay
- * centered (0) until an analog-stick UI slice sets them.
+ * finger-roll across the pad can never report an impossible combination. The two
+ * sticks (left = X/Y, right = Z/RZ) are set by the analog UI / gyro driver;
+ * deadzone shaping is UI-side (StickView) so this stays a pure wire-format builder.
  */
 class GamepadState {
 
@@ -75,6 +77,8 @@ class GamepadState {
     private val dpadHeld = HashSet<DpadDirection>()
     private var x: Int = 0
     private var y: Int = 0
+    private var z: Int = 0
+    private var rz: Int = 0
 
     fun buttonDown(button: GamepadButton) {
         buttons = buttons or (1 shl button.bit)
@@ -88,10 +92,16 @@ class GamepadState {
         if (held) dpadHeld.add(direction) else dpadHeld.remove(direction)
     }
 
-    /** Set the stick axes, each clamped to -127..127 (future analog slice). */
-    fun setAxes(newX: Int, newY: Int) {
+    /** Set the LEFT stick (X/Y), each axis clamped to -127..127. */
+    fun setLeftStick(newX: Int, newY: Int) {
         x = newX.coerceIn(-127, 127)
         y = newY.coerceIn(-127, 127)
+    }
+
+    /** Set the RIGHT stick (Z/RZ — Android's AXIS_Z/AXIS_RZ), clamped to -127..127. */
+    fun setRightStick(newZ: Int, newRz: Int) {
+        z = newZ.coerceIn(-127, 127)
+        rz = newRz.coerceIn(-127, 127)
     }
 
     /** Release everything (host disconnect / transport stop — no stuck inputs). */
@@ -100,10 +110,13 @@ class GamepadState {
         dpadHeld.clear()
         x = 0
         y = 0
+        z = 0
+        rz = 0
     }
 
-    /** True when nothing is held and the axes are centered. */
-    fun isNeutral(): Boolean = buttons == 0 && dpadHeld.isEmpty() && x == 0 && y == 0
+    /** True when nothing is held and every axis is centered. */
+    fun isNeutral(): Boolean =
+        buttons == 0 && dpadHeld.isEmpty() && x == 0 && y == 0 && z == 0 && rz == 0
 
     /** The current hat-switch value: 0 (released) or 1..8 (N, NE, E, SE, S, SW, W, NW). */
     fun hatValue(): Int {
@@ -124,13 +137,15 @@ class GamepadState {
         }
     }
 
-    /** The 5-byte Report-3 payload for the current state. */
+    /** The 7-byte Report-3 payload for the current state. */
     fun report(): ByteArray = byteArrayOf(
         (buttons and 0xFF).toByte(),
         ((buttons shr 8) and 0xFF).toByte(),
         hatValue().toByte(),
         x.toByte(),
         y.toByte(),
+        z.toByte(),
+        rz.toByte(),
     )
 }
 

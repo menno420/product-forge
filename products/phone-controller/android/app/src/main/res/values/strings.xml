@@ -34,6 +34,7 @@
     <string name="layout_label">Layout: </string>
     <string name="layout_full_gamepad">Full gamepad</string>
     <string name="layout_gba">GBA pad</string>
+    <string name="layout_analog">Analog sticks</string>
     <string name="layout_touchpad">Touchpad</string>
     <string name="layout_keyboard">Keyboard</string>
     <string name="layout_emu_keys">Emu keys</string>
@@ -42,4 +43,37 @@
     <!-- Touchpad -->
     <string name="touchpad_hint">Drag = move · tap = click · two-finger tap = right-click · two-finger drag = scroll</string>
     <string name="sensitivity">Speed </string>
+
+    <!-- Analog pad -->
+    <string name="gyro_on">Gyro ✓</string>
+    <string name="gyro_off">Gyro</string>
+
+    <!-- Ergonomics + settings -->
+    <string name="dim">Dim</string>
+    <string name="immersive">Full-scr</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_haptics">Vibrate on press</string>
+    <string name="settings_deadzone">Stick deadzone</string>
+    <!-- %1$d = rolling average of the app-side input path in microseconds. -->
+    <string name="settings_latency_fmt">Input path: %1$d µs avg (app side; link latency rides on top)</string>
+    <string name="stale_pairing_warning">This device was paired before the last app update — if some inputs don’t respond, remove the pairing on BOTH devices and pair again.</string>
+
+    <!-- Layout manager + editor -->
+    <string name="layouts_title">Layouts…</string>
+    <string name="new_layout">New layout…</string>
+    <string name="new_layout_name">Name the new layout</string>
+    <string name="layout_use">Use</string>
+    <string name="layout_edit">Edit</string>
+    <string name="layout_rename">Rename</string>
+    <string name="layout_delete">Delete</string>
+    <string name="editor_add">+ Button</string>
+    <string name="editor_hint_move">Help</string>
+    <string name="editor_hint">Drag a button to move it · short-press a button to change its action, size, turbo, or label · Save when done.</string>
+    <string name="editor_save">Save ✓</string>
+    <string name="editor_change_action">Change action…</string>
+    <string name="editor_turbo_on">Turbo: enable ⚡</string>
+    <string name="editor_turbo_off">Turbo: disable</string>
+    <string name="editor_size">Size…</string>
+    <string name="editor_label">Label…</string>
+    <string name="editor_delete">Delete button</string>
 </resources>

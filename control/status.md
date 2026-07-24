@@ -1,11 +1,21 @@
 # product-forge · status
 
-updated: 2026-07-23T21:31:38Z
-phase: phone-controller Slice 5 SHIPPED — touchpad-mouse + full keyboard + layout presets + slide-over pads + landscape (v0.5.0)
+updated: 2026-07-24T05:53:39Z
+phase: phone-controller Slice 6 SHIPPED — custom layout editor, analog sticks + gyro, turbo/haptics, dim/immersive, per-host memory, stale-pairing warning (v0.6.0)
 lane: builder (phone-controller) · owner-live session 2026-07-23
 health: green
 
 ## This session (2026-07-23, owner-live directive)
+**Slice 6 SHIPPED (same conversation):** the research gap plan, implemented — custom
+layout editor (drag/resize/assign any action, per-button turbo 10 Hz, saved layouts in
+the picker) · Analog-sticks pad (descriptor rev: right stick = Z/RZ; deadzone setting)
+· gyro→right-stick toggle · haptics toggle · Dim + Full-screen modes · per-host layout
+memory + silent auto-reconnect · stale-pairing warning (per-bond descriptor hash — the
+owner's touchpad incident, field-confirmed fixed by re-pair mid-slice) · keyboard F-row
+· measured input-path latency stat in Settings. v0.6.0 (re-pair required once —
+descriptor grew). Verified pre-push: 38/38 JVM tests, app compiles vs android.jar.
+Card: `.sessions/2026-07-23-phone-controller-slice6-editor-sticks-ergonomics.md`.
+
 **Slice 5 SHIPPED (same owner-live conversation):** owner playtest of v0.4.0 against a
 laptop succeeded (pairing + keyboard + emu-keys working; gamepad reports confirmed on a
 HID tester — emulator-side binding is per-emulator config). Live feature asks delivered

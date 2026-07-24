@@ -53,10 +53,17 @@ browser/files app when prompted (normal sideload flow — this app is not on a s
    new device* → pair with **“Phone Controller”**. (Already paired once? Just tap
    **Connect…** and pick the device.)
 4. When the status reads **Connected — controller is live**, pick a layout (the
-   spinner; your choice persists):
+   spinner; your choice persists — globally AND per connected host):
    - **Full gamepad** — D-pad + A/B/X/Y + L1/R1 + Select/Start. The target sees a
      standard HID gamepad (`KEYCODE_BUTTON_A`…, D-pad from the hat switch).
    - **GBA pad** — D-pad + B/A + L/R + Select/Start in the console's arrangement.
+   - **Analog sticks** — two real thumbsticks (left = X/Y, right = Z/RZ, deadzone
+     configurable in Settings), face buttons, L1/L2/R2/R1, and a **Gyro** toggle
+     that maps phone tilt onto the right stick (aiming / steering).
+   - **Your own layouts** — Settings → *Layouts…* → New: drag buttons anywhere,
+     resize them, assign any action (gamepad / D-pad / keys / modifiers / media /
+     mouse), flag per-button **turbo ⚡** (10 Hz auto-fire), rename, save. Custom
+     layouts join this spinner.
    - **Touchpad** — drag to move the host's pointer (on an Android target a system
      cursor appears), tap = click, two-finger tap = right-click, two-finger drag =
      scroll (natural direction), hold LEFT + drag = drag-select; speed slider below.
