@@ -686,13 +686,13 @@ object ControllerPads {
             return root
         }
 
-        /** The shared 3×3 D-pad grid (slide-over). */
-        fun dpadGrid(host: PadHost): LinearLayout = grid3(
-            null, slide("▲") { d -> host.onDpad(DpadDirection.UP, d) }, null,
-            slide("◀") { d -> host.onDpad(DpadDirection.LEFT, d) }, null,
-            slide("▶") { d -> host.onDpad(DpadDirection.RIGHT, d) },
-            null, slide("▼") { d -> host.onDpad(DpadDirection.DOWN, d) }, null,
-        )
+        /**
+         * The shared D-pad. Slice 15: an 8-way [DpadView] with diagonals (press two
+         * directions between side and front) + glide, replacing the old 4-button
+         * slide grid. It consumes its own touches, so face-button chords still work
+         * via the pad's router (default motion-event splitting).
+         */
+        fun dpadGrid(host: PadHost): View = DpadView(context) { d, down -> host.onDpad(d, down) }
 
         /** A classic hold button: press on finger-down, release on finger-up/cancel. */
         @SuppressLint("ClickableViewAccessibility")

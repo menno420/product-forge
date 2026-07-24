@@ -66,16 +66,19 @@ browser/files app when prompted (normal sideload flow — this app is not on a s
      is sending — even before connecting. Neutral "0 input" is wherever you hold the
      phone when you enable gyro; **long-press the Gyro button to recenter** mid-game,
      or use the Recenter button in Settings → Gyro….
-   - **Your own layouts** — Settings → *Layouts…* → New: drag buttons anywhere;
-     size presets + fine width/height steppers; assign any action (gamepad / D-pad /
-     keys / modifiers / media / mouse / key combos / **macros** — timed multi-step
-     sequences with pauses, built right in the editor); per-button **color**
-     (16-swatch palette, auto-contrast text), **shape** (rounded / circle / pill /
-     square), **opacity**, **text size**, **turbo ⚡** (rate settable 5–20/s);
-     duplicate buttons or whole layouts; pick a pad **background** (incl. OLED
-     black). Custom layouts join this spinner — and can be **shared as text**
-     (Layouts → your layout → Share…) and imported by anyone via Layouts →
-     *Import layout…* (paste). Great for posting layouts to Discord/Reddit.
+   - **Your own layouts** — Settings → *Layouts…* → New: **start from a template**
+     (Blank / GBA / Full gamepad / Analog + sticks), then drag anything anywhere.
+     Add **buttons** (any action — gamepad / D-pad / keys / modifiers / media /
+     mouse / key combos / **macros**) *and* **widgets** via **+ Stick / D-pad…**:
+     a **left/right analog stick**, an **8-way D-pad** (with diagonals — press
+     between side and front for two directions at once), a **touchpad**, or a
+     **gyro toggle** — so a custom layout can be as full-featured as the built-in
+     Analog pad. Per-button **color** (16-swatch palette, auto-contrast text),
+     **shape** (rounded / circle / pill / square), **opacity**, **text size**,
+     **turbo ⚡** (rate settable 5–20/s); duplicate buttons or whole layouts; pick a
+     pad **background** (incl. OLED black). Custom layouts join this spinner — and
+     can be **shared as text** (Layouts → your layout → Share…) and imported by
+     anyone via Layouts → *Import layout…* (paste).
    - **Touchpad** — drag to move the host's pointer (on an Android target a system
      cursor appears), tap = click, two-finger tap = right-click, two-finger drag =
      scroll (natural direction), hold LEFT + drag = drag-select; speed slider below.

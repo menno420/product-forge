@@ -64,6 +64,8 @@ import com.productforge.phonecontroller.layout.PadActionType
 import com.productforge.phonecontroller.layout.PadButtonSpec
 import com.productforge.phonecontroller.layout.PadFx
 import com.productforge.phonecontroller.layout.PadShape
+import com.productforge.phonecontroller.layout.PadWidgetSpec
+import com.productforge.phonecontroller.layout.PadWidgetType
 import com.productforge.phonecontroller.ui.ButtonStyler
 import com.productforge.phonecontroller.transport.BluetoothHidDeviceTransport
 import com.productforge.phonecontroller.transport.HidTransportListener
@@ -648,7 +650,10 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                 showSelection("b:0")
                 return
             }
-            CustomPadView(this, layout, editMode = false, actionResolver = ::resolveAction, turbo = turbo)
+            CustomPadView(
+                this, layout, editMode = false, actionResolver = ::resolveAction, turbo = turbo,
+                host = this, gyro = gyroToggle, deadzonePct = deadzone(),
+            )
         } else {
             when (Pad.entries.getOrElse(key.removePrefix("b:").toIntOrNull() ?: 0) { Pad.FULL_GAMEPAD }) {
                 Pad.FULL_GAMEPAD -> ControllerPads.buildGamepadPad(this, this)
@@ -752,14 +757,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             .setItems(items.toTypedArray()) { _, which ->
                 when {
                     which < layouts.size -> layoutOptions(layouts[which])
-                    which == layouts.size -> promptText(getString(R.string.new_layout_name), "") { name ->
-                        val layout = CustomLayout.template(
-                            "cl_${System.currentTimeMillis()}",
-                            name.ifBlank { getString(R.string.new_layout) },
-                        )
-                        layoutStore.save(layout)
-                        startEditor(layout)
-                    }
+                    which == layouts.size -> newLayoutFlow()
                     else -> importLayoutDialog()
                 }
             }
@@ -865,6 +863,91 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             .show()
     }
 
+    /** New-layout flow (Slice 15): pick a starter template, then name it, then edit. */
+    private fun newLayoutFlow() {
+        val kinds = CustomLayout.templateKinds()
+        AlertDialog.Builder(this)
+            .setTitle(R.string.new_layout_template)
+            .setItems(kinds.toTypedArray()) { _, which ->
+                promptText(getString(R.string.new_layout_name), "") { name ->
+                    val layout = CustomLayout.template(
+                        "cl_${System.currentTimeMillis()}",
+                        name.ifBlank { getString(R.string.new_layout) },
+                        kinds[which],
+                    )
+                    layoutStore.save(layout)
+                    startEditor(layout)
+                }
+            }
+            .show()
+    }
+
+    /** Add-widget flow (Slice 15): pick a widget type, place it centred, then edit. */
+    private fun addWidgetFlow(layout: CustomLayout, editView: CustomPadView) {
+        val types = PadWidgetType.entries
+        AlertDialog.Builder(this)
+            .setTitle(R.string.editor_add_widget)
+            .setItems(types.map { widgetTypeLabel(it) }.toTypedArray()) { _, which ->
+                val type = types[which]
+                // Sticks/D-pad want a chunky default; touchpad wider; gyro small.
+                val spec = when (type) {
+                    PadWidgetType.TOUCHPAD -> PadWidgetSpec(type, 0.30f, 0.30f, 0.40f, 0.40f)
+                    PadWidgetType.GYRO -> PadWidgetSpec(type, 0.44f, 0.44f, 0.14f, 0.12f)
+                    else -> PadWidgetSpec(type, 0.36f, 0.30f, 0.28f, 0.40f)
+                }
+                layout.widgets.add(spec)
+                editView.rebuild()
+            }
+            .show()
+    }
+
+    private fun widgetTypeLabel(type: PadWidgetType): String = when (type) {
+        PadWidgetType.LEFT_STICK -> getString(R.string.widget_left_stick)
+        PadWidgetType.RIGHT_STICK -> getString(R.string.widget_right_stick)
+        PadWidgetType.DPAD -> getString(R.string.widget_dpad)
+        PadWidgetType.TOUCHPAD -> getString(R.string.widget_touchpad)
+        PadWidgetType.GYRO -> getString(R.string.widget_gyro)
+    }
+
+    /** Edit dialog for a placed widget: change type, resize, or delete. */
+    private fun widgetConfigDialog(layout: CustomLayout, spec: PadWidgetSpec) {
+        val entries = listOf<Pair<String, () -> Unit>>(
+            getString(R.string.editor_change_type) to {
+                val types = PadWidgetType.entries
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.editor_change_type)
+                    .setItems(types.map { widgetTypeLabel(it) }.toTypedArray()) { _, w ->
+                        spec.type = types[w]
+                        editingView?.rebuild()
+                    }
+                    .show()
+            },
+            getString(R.string.editor_size) to {
+                val sizes = listOf(
+                    "S" to (0.18f to 0.26f), "M" to (0.28f to 0.40f),
+                    "L" to (0.40f to 0.55f), "XL" to (0.52f to 0.7f),
+                )
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.editor_size)
+                    .setItems(sizes.map { it.first }.toTypedArray()) { _, s ->
+                        spec.wPct = sizes[s].second.first
+                        spec.hPct = sizes[s].second.second
+                        spec.clampToPad()
+                        editingView?.rebuild()
+                    }
+                    .show()
+            },
+            getString(R.string.editor_delete) to {
+                layout.widgets.remove(spec)
+                editingView?.rebuild()
+            },
+        )
+        AlertDialog.Builder(this)
+            .setTitle(widgetTypeLabel(spec.type))
+            .setItems(entries.map { it.first }.toTypedArray()) { _, which -> entries[which].second() }
+            .show()
+    }
+
     private fun startEditor(layout: CustomLayout) {
         turbo.cancelAll()
         stopGyro()
@@ -876,6 +959,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             this, layout, editMode = true,
             actionResolver = ::resolveAction, turbo = turbo,
             onEditButton = { spec -> buttonConfigDialog(layout, spec) },
+            onEditWidget = { spec -> widgetConfigDialog(layout, spec) },
         )
         editingView = editView
 
@@ -890,6 +974,9 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                     layout.buttons.add(spec)
                     editView.rebuild()
                     buttonConfigDialog(layout, spec)
+                },
+                getString(R.string.editor_add_widget) to {
+                    addWidgetFlow(layout, editView)
                 },
                 getString(R.string.editor_hint_move) to {
                     setDetail(getString(R.string.editor_hint))
