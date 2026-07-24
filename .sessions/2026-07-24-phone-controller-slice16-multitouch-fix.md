@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 16: fix simultaneous multi-touch (A + steer) (builder lane)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: fable-5 · high · feature build
 
@@ -10,6 +10,14 @@ Time: 2026-07-24 · lane: builder (phone-controller · slice 16) · owner-live d
 💡 Session idea: owner playing Mario Kart (NDS) found a game-breaking bug — "multiple
 inputs at the same time don't work, so I can't press A for gas and steer at the same
 time." Critical fix.
+
+## previous-session review
+
+v0.15.0 shipped (PR #46): custom-layout widgets (sticks/D-pad/gyro/touchpad) +
+8-way D-pad + templates. That slice made the D-pad a consuming DpadView on the
+built-in pads — which, combined with the long-standing StickView on the Analog pad,
+exposed the multi-touch flaw this slice fixes (the router-vs-consuming-child
+conflict). Stable signing since v0.9.0; installs land in place.
 
 ## Root cause
 
@@ -58,4 +66,16 @@ stable-signed release. Owner to field-verify A + steer on Mario Kart.
 
 ## Result
 
-_(fill on completion)_
+Shipped. SlidePadRouter deleted; slide()/slideTinted()/hold() now share one
+holdTouch() per-button consuming listener; slidePadRoot() enables tree-wide
+motion-event splitting and returns the tree. CustomPadView play mode drives each
+button via its own HoldTouch listener (turbo-wrapped) and enables splitting; edit
+mode unchanged. Every button/stick/dpad/touchpad is now an independent consuming
+view, so Android delivers each finger to the control under it — 4+ simultaneous
+inputs (no artificial cap; limited only by the digitizer, ~10 points). D-pad glide
++ diagonals preserved inside DpadView. Only face-button-to-face-button glide is
+gone (minor, correctly traded for working multi-touch).
+
+hid-core 59/59 (unchanged); app vs android.jar 90 classes. v0.16.0 (versionCode 14),
+stable-signed, no HID descriptor change → installs in place, no re-pair. Owner to
+field-verify A + steer on Mario Kart. PR/tag/release: control/status.md heartbeat.
