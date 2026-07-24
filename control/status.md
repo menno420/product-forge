@@ -1,11 +1,17 @@
 # product-forge · status
 
-updated: 2026-07-24T05:53:39Z
-phase: phone-controller Slice 6 SHIPPED — custom layout editor, analog sticks + gyro, turbo/haptics, dim/immersive, per-host memory, stale-pairing warning (v0.6.0)
+updated: 2026-07-24T07:42:44Z
+phase: ACTIVE — phone-controller Slice 7 IN FLIGHT (visual customization: colors/shapes/sizing)
 lane: builder (phone-controller) · owner-live session 2026-07-23
 health: green
 
 ## This session (2026-07-23, owner-live directive)
+**Slice 7 WIP (2026-07-24, same conversation):** owner ask — per-button colours +
+finer size/position control + "all these kind of extra features". In flight:
+color/shape/opacity/text-size per button, size steppers, duplicate button/layout,
+pad background, built-in ABXY tints. Card:
+`.sessions/2026-07-24-phone-controller-slice7-visual-customization.md`.
+
 **Slice 6 SHIPPED (same conversation):** the research gap plan, implemented — custom
 layout editor (drag/resize/assign any action, per-button turbo 10 Hz, saved layouts in
 the picker) · Analog-sticks pad (descriptor rev: right stick = Z/RZ; deadzone setting)
