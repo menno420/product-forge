@@ -7,14 +7,14 @@
  *   * Hold-capable controls send PRESS on finger-down and RELEASE on finger-up —
  *     that is what makes holds work on the receiving device (hold-to-walk in an
  *     emulator is a held HID report, not a repeated tap).
- *   * GAME pads (Full gamepad · GBA pad · Emu keys) route touches through
- *     [SlidePadRouter]: every finger position is hit-tested per event, so SLIDING
- *     between buttons presses the new one and releases the old without lifting the
- *     finger (owner playtest ask, 2026-07-23: D-pad glide). Multi-finger chords
- *     keep working — the router diffs the union of buttons under all fingers.
- *   * The QWERTY keyboard pad deliberately does NOT slide-activate (gliding across
- *     a typing surface would spam letters); its keys are classic per-button holds.
- *     Held keys auto-repeat courtesy of the host OS's typematic handling.
+ *   * Every button CONSUMES its own touch (Slice 16), so Android's motion-event
+ *     splitting delivers each finger to the button under it independently —
+ *     4+ simultaneous inputs work (A + steer + …). The D-pad is a single [DpadView]
+ *     that handles its own multi-point glide + diagonals internally (the owner's
+ *     Slice-5 "slide the arrows without lifting" ask), and multi-touches alongside
+ *     the face buttons as an independent consuming view.
+ *   * The QWERTY keyboard pad keys are classic per-button holds (auto-repeat via the
+ *     host OS's typematic handling).
  *   * Media controls keep Slice-2 tap semantics (press+release pair per tap).
  *
  * Pad layout notes:
@@ -654,68 +654,76 @@ object ControllerPads {
     private val TINT_X = 0xFF1E88E5.toInt() // blue
     private val TINT_Y = 0xFFFDD835.toInt() // yellow
 
-    /** Small per-pad widget factory (dp math, button shapes, slide-pad assembly). */
+    /** Small per-pad widget factory (dp math, button shapes, pad assembly). */
     private class Builder(val context: Context) {
-
-        /** Buttons awaiting a SlidePadRouter, in registration order. */
-        val slideActions = LinkedHashMap<Button, (Boolean) -> Unit>()
 
         fun dp(v: Int): Int = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP, v.toFloat(), context.resources.displayMetrics,
         ).toInt()
 
-        /** A slide-over button: pressed/released by the pad router, not its own listener. */
-        fun slide(label: String, onChange: (down: Boolean) -> Unit): Button =
-            base(label).apply {
-                isClickable = false
-                isFocusable = false
-                slideActions[this] = onChange
-            }
-
-        /** A slide button in a classic face color (flat-styled, auto-contrast text). */
-        fun slideTinted(label: String, argb: Int, onChange: (down: Boolean) -> Unit): Button =
-            slide(label, onChange).apply {
-                ButtonStyler.flatStyle(this, argb)
-            }
-
-        /** Wire the router onto a finished slide-pad tree. */
+        /**
+         * The per-button touch handler shared by every hold-capable control (Slice 16).
+         * Each button CONSUMES its own finger — press on down, release on up/cancel —
+         * so Android's motion-event splitting delivers every finger to the button under
+         * it independently. That is what makes 4+ simultaneous inputs work (A + D-pad +
+         * B + …); the old single-router-on-the-root approach dropped extra fingers once
+         * a sibling widget (stick / D-pad / touchpad) claimed one.
+         */
         @SuppressLint("ClickableViewAccessibility")
+        private fun holdTouch(button: Button, onChange: (down: Boolean) -> Unit) {
+            button.setOnTouchListener { v, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        v.isPressed = true
+                        Haptics.tick(v)
+                        onChange(true)
+                        true
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        v.isPressed = false
+                        onChange(false)
+                        v.performClick()
+                        true
+                    }
+                    else -> false
+                }
+            }
+        }
+
+        /** A hold-capable button (consumes its own touch; multi-finger safe). */
+        fun slide(label: String, onChange: (down: Boolean) -> Unit): Button =
+            base(label).apply { holdTouch(this, onChange) }
+
+        /** A hold button in a classic face color (flat-styled, auto-contrast text). */
+        fun slideTinted(label: String, argb: Int, onChange: (down: Boolean) -> Unit): Button =
+            slide(label, onChange).apply { ButtonStyler.flatStyle(this, argb) }
+
+        /** Finish a pad tree: ensure multi-finger splitting is on across the tree. */
         fun slidePadRoot(root: ViewGroup): ViewGroup {
-            root.setOnTouchListener(SlidePadRouter(root, LinkedHashMap(slideActions)))
-            slideActions.clear()
+            enableSplitTouch(root)
             return root
         }
 
+        /** Motion-event splitting is default-on, but set it explicitly, tree-wide. */
+        private fun enableSplitTouch(v: View) {
+            if (v is ViewGroup) {
+                v.isMotionEventSplittingEnabled = true
+                for (i in 0 until v.childCount) enableSplitTouch(v.getChildAt(i))
+            }
+        }
+
         /**
-         * The shared D-pad. Slice 15: an 8-way [DpadView] with diagonals (press two
-         * directions between side and front) + glide, replacing the old 4-button
-         * slide grid. It consumes its own touches, so face-button chords still work
-         * via the pad's router (default motion-event splitting).
+         * The shared D-pad: an 8-way [DpadView] with diagonals + internal glide (the
+         * owner's Slice-5 "slide the arrows without lifting" request). It consumes its
+         * own touches, so it multi-touches independently alongside the face buttons.
          */
         fun dpadGrid(host: PadHost): View = DpadView(context) { d, down -> host.onDpad(d, down) }
 
-        /** A classic hold button: press on finger-down, release on finger-up/cancel. */
-        @SuppressLint("ClickableViewAccessibility")
+        /** A classic hold button with a layout weight (consumes its own touch). */
         fun hold(label: String, weight: Float = 1f, onChange: (down: Boolean) -> Unit): Button =
             base(label).apply {
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, weight)
-                setOnTouchListener { v, event ->
-                    when (event.actionMasked) {
-                        MotionEvent.ACTION_DOWN -> {
-                            v.isPressed = true
-                            Haptics.tick(v)
-                            onChange(true)
-                            true
-                        }
-                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                            v.isPressed = false
-                            onChange(false)
-                            v.performClick()
-                            true
-                        }
-                        else -> false
-                    }
-                }
+                holdTouch(this, onChange)
             }
 
         /** A tap button (press+release pair is sent by the transport). */

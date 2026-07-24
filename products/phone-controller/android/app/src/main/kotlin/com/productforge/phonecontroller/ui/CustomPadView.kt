@@ -1,11 +1,12 @@
 /*
  * CustomPadView — renders a user-defined layout (Slice 6; widgets added Slice 15).
  *
- * PLAY mode: buttons are laid out at their percent positions and driven by the
- * shared SlidePadRouter (glide + chords) with per-button turbo; WIDGETS (analog
- * sticks / 8-way D-pad / touchpad / gyro toggle) render as their real interactive
- * views wired to the host, and consume their own touches so they coexist with the
- * button router.
+ * PLAY mode: buttons are laid out at their percent positions; each button CONSUMES
+ * its own touch (press on down, release on up) with per-button turbo, so Android's
+ * motion-event splitting delivers every finger independently — 4+ simultaneous
+ * inputs work (Slice 16). WIDGETS (analog sticks / 8-way D-pad / touchpad / gyro
+ * toggle) render as their real interactive views wired to the host and likewise
+ * consume their own touches.
  *
  * EDIT mode: drag a button OR widget to move it (positions snap to 1%); a SHORT
  * press opens the per-element dialog the host provides. Widgets render as labelled
@@ -61,18 +62,22 @@ class CustomPadView(
         editSpecs.clear()
         setBackgroundColor(layout.bgColorArgb ?: 0x00000000)
 
-        val actions = LinkedHashMap<Button, (Boolean) -> Unit>()
         for (spec in layout.buttons) {
             val button = Button(context).apply {
                 text = if (spec.turbo) "${spec.label} ⚡" else spec.label
                 isAllCaps = false
-                isClickable = false
-                isFocusable = false
             }
             ButtonStyler.apply(button, spec, 0)
             buttonViews[button] = spec
             editSpecs[button] = spec
-            if (!editMode) actions[button] = turbo.wrap(button, spec.turbo, actionResolver(spec))
+            if (!editMode) {
+                // Each button consumes its own touch → 4+ simultaneous inputs (Slice 16).
+                val action = turbo.wrap(button, spec.turbo, actionResolver(spec))
+                button.setOnTouchListener(HoldTouch(action))
+            } else {
+                button.isClickable = false
+                button.isFocusable = false
+            }
             addView(button)
         }
 
@@ -83,8 +88,32 @@ class CustomPadView(
             addView(view)
         }
 
-        setOnTouchListener(if (editMode) EditTouch() else SlidePadRouter(this, actions))
+        // Edit mode drags via the root; play mode leaves touches to the children.
+        setOnTouchListener(if (editMode) EditTouch() else null)
+        isMotionEventSplittingEnabled = true
         requestLayout()
+    }
+
+    /** Per-button consuming press/release (play mode) — the multi-touch-safe path. */
+    private inner class HoldTouch(private val action: (Boolean) -> Unit) : OnTouchListener {
+        @SuppressLint("ClickableViewAccessibility")
+        override fun onTouch(v: View, event: MotionEvent): Boolean {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    v.isPressed = true
+                    Haptics.tick(v)
+                    action(true)
+                    return true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    v.isPressed = false
+                    action(false)
+                    v.performClick()
+                    return true
+                }
+            }
+            return false
+        }
     }
 
     /** The live interactive view for a widget (play mode). */

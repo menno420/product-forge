@@ -100,9 +100,11 @@ browser/files app when prompted (normal sideload flow — this app is not on a s
    - **Emu keys** — arrows, Z/X/A/S, Enter/Space/Shift/Esc/Tab (the classic emulator
      default binds).
    - **Media** — play/pause, next/prev, stop, volume, mute (the Slice-2 remote).
-   Buttons **hold** (a held HID report, not repeated taps), and on the game pads you
-   can **slide between buttons without lifting** — glide across the D-pad like on a
-   real controller. Landscape is fully supported (side panel + full-height pad), and
+   Buttons **hold** (a held HID report, not repeated taps), and **many inputs work at
+   once** — press A while steering, or hold four+ buttons together; each finger is
+   tracked independently. The 8-way D-pad glides across its own directions (including
+   diagonals) without lifting, like a real controller. Landscape is fully supported
+   (side panel + full-height pad), and
    rotating does not drop the connection. The whole app wears a dark controller
    theme; **Settings → App background…** recolors it (custom layouts can still
    override per-layout), and the **Focus** button enters pure controller mode —

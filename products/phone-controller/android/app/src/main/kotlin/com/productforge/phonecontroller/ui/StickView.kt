@@ -63,36 +63,46 @@ class StickView(context: Context, private val listener: Listener) : View(context
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(e: MotionEvent): Boolean {
         when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
-                if (e.actionMasked == MotionEvent.ACTION_DOWN && !engaged) {
-                    engaged = true
-                    Haptics.tick(this)
-                }
-                val cx = width / 2f
-                val cy = height / 2f
-                var dx = e.x - cx
-                var dy = e.y - cy
-                val r = radius() - thumbRadius() * 0.4f
-                val len = hypot(dx, dy)
-                if (len > r && len > 0f) {
-                    dx *= r / len
-                    dy *= r / len
-                }
-                thumbX = dx
-                thumbY = dy
-                emit(dx / r, dy / r)
-                invalidate()
-            }
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> applyLocal(e.x, e.y, true)
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                engaged = false
-                thumbX = 0f
-                thumbY = 0f
-                listener.onStick(0, 0)
-                invalidate()
+                applyLocal(0f, 0f, false)
                 performClick()
             }
         }
         return true
+    }
+
+    /**
+     * Drive the stick from a local touch point (Slice 16 — the unified pad router
+     * calls this per-pointer). [active] false recenters and emits 0,0.
+     */
+    fun applyLocal(x: Float, y: Float, active: Boolean) {
+        if (!active) {
+            engaged = false
+            thumbX = 0f
+            thumbY = 0f
+            listener.onStick(0, 0)
+            invalidate()
+            return
+        }
+        if (!engaged) {
+            engaged = true
+            Haptics.tick(this)
+        }
+        val cx = width / 2f
+        val cy = height / 2f
+        var dx = x - cx
+        var dy = y - cy
+        val r = radius() - thumbRadius() * 0.4f
+        val len = hypot(dx, dy)
+        if (len > r && len > 0f) {
+            dx *= r / len
+            dy *= r / len
+        }
+        thumbX = dx
+        thumbY = dy
+        emit(dx / r, dy / r)
+        invalidate()
     }
 
     override fun performClick(): Boolean {
