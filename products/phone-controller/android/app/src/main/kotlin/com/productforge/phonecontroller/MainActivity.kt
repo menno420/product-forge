@@ -56,16 +56,20 @@ import com.productforge.phonecontroller.layout.LayoutStore
 import com.productforge.phonecontroller.layout.PadAction
 import com.productforge.phonecontroller.layout.PadActionType
 import com.productforge.phonecontroller.layout.PadButtonSpec
+import com.productforge.phonecontroller.layout.PadFx
 import com.productforge.phonecontroller.layout.PadShape
 import com.productforge.phonecontroller.ui.ButtonStyler
 import com.productforge.phonecontroller.transport.BluetoothHidDeviceTransport
 import com.productforge.phonecontroller.transport.HidTransportListener
+import com.productforge.phonecontroller.ui.Combos
 import com.productforge.phonecontroller.ui.ControllerPads
 import com.productforge.phonecontroller.ui.CustomPadView
 import com.productforge.phonecontroller.ui.GyroDriver
 import com.productforge.phonecontroller.ui.GyroToggle
 import com.productforge.phonecontroller.ui.Haptics
 import com.productforge.phonecontroller.ui.PadHost
+import com.productforge.phonecontroller.ui.Supporter
+import com.productforge.phonecontroller.ui.TextTyper
 import com.productforge.phonecontroller.ui.TouchpadConfig
 import com.productforge.phonecontroller.ui.TurboEngine
 
@@ -108,6 +112,22 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         GyroDriver(this) { z, rz -> transport?.rightStick(z, rz) }
     }
 
+    private val textTyper by lazy {
+        TextTyper(
+            key = { usage, down -> transport?.key(usage, down) },
+            modifier = { mask, down -> transport?.modifier(mask, down) },
+            onProgress = { typed, total, skipped, done ->
+                setDetail(
+                    if (done) {
+                        getString(R.string.typed_done_fmt, typed, skipped)
+                    } else {
+                        getString(R.string.typing_progress_fmt, typed, total)
+                    },
+                )
+            },
+        )
+    }
+
     private val gyroToggle = object : GyroToggle {
         override val available: Boolean get() = gyroDriver.available
         override val running: Boolean get() = gyroDriver.running
@@ -121,6 +141,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         Haptics.enabled = prefs().getBoolean(PREF_HAPTICS, true)
+        Supporter.unlocked = prefs().getBoolean(PREF_SUPPORTER, false)
         currentSelection = prefs().getString(PREF_SELECTION, "b:0") ?: "b:0"
         lastStatus = getString(R.string.probing)
         buildUi()
@@ -133,6 +154,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
     }
 
     override fun onDestroy() {
+        textTyper.cancel()
         gyroDriver.stop()
         turbo.cancelAll()
         transport?.stop()
@@ -296,6 +318,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                 setStatus(getString(R.string.connected_fmt, name))
                 device?.address?.let { addr -> onHostConnected(addr) }
             } else {
+                textTyper.cancel()
                 turbo.cancelAll()
                 gyroDriver.stop()
                 setStatus(getString(R.string.disconnected_hint))
@@ -374,8 +397,8 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
 
     // --- layout selection ----------------------------------------------------------------
 
-    // NDS is appended, not inserted: saved selections are "b:<ordinal>" strings, so
-    // existing ordinals must stay stable across updates.
+    // New pads are APPENDED, never inserted: saved selections are "b:<ordinal>"
+    // strings, so existing ordinals must stay stable across updates.
     private enum class Pad(val labelRes: Int) {
         FULL_GAMEPAD(R.string.layout_full_gamepad),
         GBA(R.string.layout_gba),
@@ -385,6 +408,8 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         EMU_KEYS(R.string.layout_emu_keys),
         MEDIA(R.string.layout_media),
         NDS(R.string.layout_nds),
+        PRESENTER(R.string.layout_presenter),
+        SHORTCUTS(R.string.layout_shortcuts),
     }
 
     private fun selectionKeys(): List<String> =
@@ -464,6 +489,8 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                     getString(R.string.pen_on), getString(R.string.pen_off),
                     getString(R.string.sensitivity),
                 )
+                Pad.PRESENTER -> ControllerPads.buildPresenterPad(this, this, touchpadConfig)
+                Pad.SHORTCUTS -> ControllerPads.buildShortcutsPad(this, this)
             }
         }
         padContainer.addView(
@@ -500,6 +527,19 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                 PadActionType.MOUSE -> {
                     val mb = MouseButton.valueOf(action.code)
                     ({ down -> onMouseButton(mb, down) })
+                }
+                PadActionType.COMBO -> {
+                    val (mask, usage) = Combos.parse(action.code) ?: error("bad combo")
+                    ({ down ->
+                        // Modifiers wrap the key: press before, release after.
+                        if (down) {
+                            if (mask != 0) onModifier(mask, true)
+                            onKey(usage, true)
+                        } else {
+                            onKey(usage, false)
+                            if (mask != 0) onModifier(mask, false)
+                        }
+                    })
                 }
             }
         }.getOrElse { { _ -> } } // a corrupt action never crashes the pad
@@ -638,48 +678,58 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
     }
 
     private fun buttonConfigDialog(layout: CustomLayout, spec: PadButtonSpec) {
+        // Label→handler pairs: indexes can never drift when entries are added.
         val turboLabel = if (spec.turbo) R.string.editor_turbo_off else R.string.editor_turbo_on
-        val options = arrayOf(
-            getString(R.string.editor_change_action),
-            getString(turboLabel),
-            getString(R.string.editor_size),
-            getString(R.string.editor_color),
-            getString(R.string.editor_shape),
-            getString(R.string.editor_opacity),
-            getString(R.string.editor_text_size),
-            getString(R.string.editor_label),
-            getString(R.string.editor_duplicate),
-            getString(R.string.editor_delete),
+        val entries = listOf<Pair<String, () -> Unit>>(
+            getString(R.string.editor_change_action) to { pickActionType(spec) },
+            getString(turboLabel) to {
+                spec.turbo = !spec.turbo
+                editingView?.rebuild()
+                Unit
+            },
+            getString(R.string.editor_size) to { pickSize(spec) },
+            getString(R.string.editor_color) to { pickColor(spec) },
+            getString(R.string.editor_shape) to { pickShape(spec) },
+            getString(R.string.editor_style) to { pickFx(spec) },
+            getString(R.string.editor_opacity) to { pickOpacity(spec) },
+            getString(R.string.editor_text_size) to { pickTextSize(spec) },
+            getString(R.string.editor_label) to {
+                promptText(getString(R.string.editor_label), spec.label) { text ->
+                    spec.label = text.ifBlank { spec.label }
+                    editingView?.rebuild()
+                }
+            },
+            getString(R.string.editor_duplicate) to {
+                val copy = spec.copy(xPct = spec.xPct + 0.05f, yPct = spec.yPct + 0.05f)
+                copy.clampToPad()
+                layout.buttons.add(copy)
+                editingView?.rebuild()
+                Unit
+            },
+            getString(R.string.editor_delete) to {
+                layout.buttons.remove(spec)
+                editingView?.rebuild()
+                Unit
+            },
         )
         AlertDialog.Builder(this)
             .setTitle(spec.label)
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> pickActionType(spec)
-                    1 -> {
-                        spec.turbo = !spec.turbo
-                        editingView?.rebuild()
-                    }
-                    2 -> pickSize(spec)
-                    3 -> pickColor(spec)
-                    4 -> pickShape(spec)
-                    5 -> pickOpacity(spec)
-                    6 -> pickTextSize(spec)
-                    7 -> promptText(getString(R.string.editor_label), spec.label) { text ->
-                        spec.label = text.ifBlank { spec.label }
-                        editingView?.rebuild()
-                    }
-                    8 -> {
-                        val copy = spec.copy(xPct = spec.xPct + 0.05f, yPct = spec.yPct + 0.05f)
-                        copy.clampToPad()
-                        layout.buttons.add(copy)
-                        editingView?.rebuild()
-                    }
-                    9 -> {
-                        layout.buttons.remove(spec)
-                        editingView?.rebuild()
-                    }
-                }
+            .setItems(entries.map { it.first }.toTypedArray()) { _, which -> entries[which].second() }
+            .show()
+    }
+
+    /** Supporter style pack (fair-IAP groundwork): fills stay cosmetic-only. */
+    private fun pickFx(spec: PadButtonSpec) {
+        if (!Supporter.unlocked) {
+            setDetail(getString(R.string.style_locked_hint))
+            return
+        }
+        val fxs = PadFx.entries
+        AlertDialog.Builder(this)
+            .setTitle(R.string.editor_style)
+            .setItems(fxs.map { it.name }.toTypedArray()) { _, which ->
+                spec.fx = fxs[which]
+                editingView?.rebuild()
             }
             .show()
     }
@@ -813,7 +863,31 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             .show()
     }
 
+    /** The shared key list (KEY actions AND custom-combo keys). */
+    private fun keyChoices(): List<Pair<String, String>> = buildList {
+        add("↑" to KeyUsage.ARROW_UP.toString())
+        add("↓" to KeyUsage.ARROW_DOWN.toString())
+        add("←" to KeyUsage.ARROW_LEFT.toString())
+        add("→" to KeyUsage.ARROW_RIGHT.toString())
+        add("SPACE" to KeyUsage.SPACE.toString())
+        add("ENTER" to KeyUsage.ENTER.toString())
+        add("ESC" to KeyUsage.ESCAPE.toString())
+        add("TAB" to KeyUsage.TAB.toString())
+        add("⌫" to KeyUsage.BACKSPACE.toString())
+        add("PgUp" to KeyUsage.PAGE_UP.toString())
+        add("PgDn" to KeyUsage.PAGE_DOWN.toString())
+        add("Home" to KeyUsage.HOME.toString())
+        add("End" to KeyUsage.END.toString())
+        for (n in 1..12) add("F$n" to (KeyUsage.F1 + (n - 1)).toString())
+        for (c in 'a'..'z') add(c.uppercase() to KeyUsage.letterUsage(c).toString())
+        for (c in '0'..'9') add(c.toString() to KeyUsage.digitUsage(c).toString())
+    }
+
     private fun pickActionCode(spec: PadButtonSpec, type: PadActionType) {
+        if (type == PadActionType.COMBO) {
+            pickCombo(spec)
+            return
+        }
         val choices: List<Pair<String, String>> = when (type) {
             PadActionType.GAMEPAD -> GamepadButton.entries.map { it.name to it.name }
             PadActionType.DPAD -> DpadDirection.entries.map { it.name to it.name }
@@ -823,20 +897,10 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                 "SHIFT" to KeyUsage.MOD_LEFT_SHIFT.toString(),
                 "CTRL" to KeyUsage.MOD_LEFT_CTRL.toString(),
                 "ALT" to KeyUsage.MOD_LEFT_ALT.toString(),
+                "WIN/CMD" to KeyUsage.MOD_LEFT_GUI.toString(),
             )
-            PadActionType.KEY -> buildList {
-                add("↑" to KeyUsage.ARROW_UP.toString())
-                add("↓" to KeyUsage.ARROW_DOWN.toString())
-                add("←" to KeyUsage.ARROW_LEFT.toString())
-                add("→" to KeyUsage.ARROW_RIGHT.toString())
-                add("SPACE" to KeyUsage.SPACE.toString())
-                add("ENTER" to KeyUsage.ENTER.toString())
-                add("ESC" to KeyUsage.ESCAPE.toString())
-                add("TAB" to KeyUsage.TAB.toString())
-                add("⌫" to KeyUsage.BACKSPACE.toString())
-                for (c in 'a'..'z') add(c.uppercase() to KeyUsage.letterUsage(c).toString())
-                for (c in '0'..'9') add(c.toString() to KeyUsage.digitUsage(c).toString())
-            }
+            PadActionType.KEY -> keyChoices()
+            PadActionType.COMBO -> emptyList() // handled above
         }
         AlertDialog.Builder(this)
             .setTitle(type.name)
@@ -846,6 +910,54 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                 spec.label = label
                 editingView?.rebuild()
             }
+            .show()
+    }
+
+    /** COMBO picker: the everyday presets + a fully custom modifiers×key builder. */
+    private fun pickCombo(spec: PadButtonSpec) {
+        val labels = Combos.PRESETS.map { it.label } + getString(R.string.combo_custom)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.combo_title)
+            .setItems(labels.toTypedArray()) { _, which ->
+                if (which < Combos.PRESETS.size) {
+                    val chord = Combos.PRESETS[which]
+                    spec.action = PadAction(PadActionType.COMBO, chord.code)
+                    spec.label = chord.label
+                    editingView?.rebuild()
+                } else {
+                    pickCustomCombo(spec)
+                }
+            }
+            .show()
+    }
+
+    private fun pickCustomCombo(spec: PadButtonSpec) {
+        val modNames = arrayOf("Ctrl", "Shift", "Alt", "Win/Cmd")
+        val modMasks = intArrayOf(
+            KeyUsage.MOD_LEFT_CTRL, KeyUsage.MOD_LEFT_SHIFT,
+            KeyUsage.MOD_LEFT_ALT, KeyUsage.MOD_LEFT_GUI,
+        )
+        val checked = booleanArrayOf(false, false, false, false)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.combo_pick_mods)
+            .setMultiChoiceItems(modNames, checked) { _, i, isChecked -> checked[i] = isChecked }
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                var mask = 0
+                for (i in modMasks.indices) if (checked[i]) mask = mask or modMasks[i]
+                val choices = keyChoices()
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.combo_pick_key)
+                    .setItems(choices.map { it.first }.toTypedArray()) { _, k ->
+                        val (keyLabel, code) = choices[k]
+                        spec.action = PadAction(PadActionType.COMBO, "$mask:${code.toInt()}")
+                        spec.label = (
+                            modNames.filterIndexed { i, _ -> checked[i] } + keyLabel
+                            ).joinToString("+")
+                        editingView?.rebuild()
+                    }
+                    .show()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
@@ -924,6 +1036,19 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             ).apply { topMargin = dp(8) },
         )
 
+        content.addView(
+            Button(this).apply {
+                text = getString(R.string.about_title)
+                isAllCaps = false
+                textSize = 13f
+                ButtonStyler.flatStyle(this, ButtonStyler.SURFACE, cornerDp = 18f)
+                setOnClickListener { aboutDialog() }
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+            ),
+        )
+
         AlertDialog.Builder(this)
             .setTitle(R.string.settings_title)
             .setView(ScrollView(this).apply { addView(content) })
@@ -932,6 +1057,61 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                 // Deadzone applies on pad rebuild; refresh if the analog pad is live.
                 if (currentSelection == "b:${Pad.ANALOG.ordinal}") showSelection(currentSelection)
             }
+            .show()
+    }
+
+    /**
+     * About & Support — the fairness promise made visible (Slice 9 groundwork):
+     * everything functional is free, no ads, no subscriptions; the one-time
+     * Supporter Pack (cosmetic styles) arrives with a Play listing. Until then the
+     * preview switch honestly unlocks the styles for free.
+     */
+    private fun aboutDialog() {
+        val pad = dp(16)
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, 0)
+        }
+        content.addView(
+            TextView(this).apply {
+                text = getString(R.string.fairness_promise)
+                textSize = 14f
+            },
+        )
+        content.addView(
+            Switch(this).apply {
+                text = getString(R.string.supporter_preview)
+                isChecked = Supporter.unlocked
+                setOnCheckedChangeListener { _, checked ->
+                    Supporter.unlocked = checked
+                    prefs().edit().putBoolean(PREF_SUPPORTER, checked).apply()
+                    // Re-render the live pad so style-pack fills appear/disappear now.
+                    if (editingLayout == null) showSelection(currentSelection)
+                }
+            }.also { it.setPadding(0, dp(12), 0, 0) },
+        )
+        content.addView(
+            Button(this).apply {
+                text = getString(R.string.support_button)
+                isAllCaps = false
+                textSize = 13f
+                ButtonStyler.flatStyle(this, ButtonStyler.SURFACE, cornerDp = 18f)
+                setOnClickListener {
+                    runCatching {
+                        startActivity(
+                            Intent(Intent.ACTION_VIEW, android.net.Uri.parse(SUPPORT_URL)),
+                        )
+                    }
+                }
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(8) },
+        )
+        AlertDialog.Builder(this)
+            .setTitle(R.string.about_title)
+            .setView(ScrollView(this).apply { addView(content) })
+            .setPositiveButton(android.R.string.ok, null)
             .show()
     }
 
@@ -1048,25 +1228,58 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         actionButton(R.string.make_discoverable) { makeDiscoverable() },
         actionButton(R.string.connect_bonded) { pickBondedAndConnect() },
         actionButton(R.string.reprobe) { ensurePermissionsThenStart() },
+        actionButton(R.string.send_text) { sendTextDialog() },
         actionButton(R.string.dim) { toggleDim() },
         actionButton(R.string.immersive) { toggleImmersive() },
         actionButton(R.string.focus) { setFocusMode(true) },
         actionButton(R.string.settings_title) { openSettings() },
     )
 
+    /**
+     * Send text (Slice 9): the phone's own IME — swipe typing, autocorrect and the
+     * MIC key (voice dictation) — replayed on the host as real HID keystrokes.
+     */
+    private fun sendTextDialog() {
+        if (transport?.isConnected != true) {
+            setDetail(getString(R.string.connect_first))
+            return
+        }
+        val input = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or
+                InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            minLines = 3
+            maxLines = 8
+            hint = getString(R.string.send_text_hint)
+        }
+        val pad = dp(16)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.send_text_title)
+            .setView(FrameLayout(this).apply {
+                setPadding(pad, dp(4), pad, 0)
+                addView(input)
+            })
+            .setPositiveButton(R.string.send_text_send) { _, _ ->
+                val text = input.text.toString()
+                if (text.isNotEmpty()) textTyper.type(text)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     private fun buildPortraitRoot(): View {
         val buttons = actionButtons()
         val row1 = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(dp(6), 0, dp(6), 0)
-            buttons.take(3).forEach {
+            buttons.take(4).forEach {
                 addView(it, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
             }
         }
         val row2 = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(dp(6), 0, dp(6), 0)
-            buttons.drop(3).forEach {
+            buttons.drop(4).forEach {
                 addView(it, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
             }
         }
@@ -1125,5 +1338,9 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         const val PREF_HOST_LAYOUT_PREFIX = "host_layout_"
         const val PREF_APP_BG = "app_bg"
         const val PREF_NDS_PEN = "nds_pen"
+        const val PREF_SUPPORTER = "supporter_preview"
+
+        /** Swap to Ko-fi/GitHub Sponsors when the owner creates one (Slice-9 card). */
+        const val SUPPORT_URL = "https://github.com/menno420/product-forge"
     }
 }

@@ -270,16 +270,22 @@ object KeyUsage {
     const val SLASH = 0x38
     const val F1 = 0x3A          // F1..F12 run 0x3A..0x45 (F1 + n-1)
     const val F12 = 0x45
+    const val PRINT_SCREEN = 0x46
+    const val HOME = 0x4A
+    const val PAGE_UP = 0x4B
     const val DELETE_FORWARD = 0x4C
+    const val END = 0x4D
+    const val PAGE_DOWN = 0x4E
     const val ARROW_RIGHT = 0x4F
     const val ARROW_LEFT = 0x50
     const val ARROW_DOWN = 0x51
     const val ARROW_UP = 0x52
 
-    /** Modifier bit masks (report byte 0). */
+    /** Modifier bit masks (report byte 0; the descriptor spans E0–E7, all 8 bits). */
     const val MOD_LEFT_CTRL = 0x01
     const val MOD_LEFT_SHIFT = 0x02
     const val MOD_LEFT_ALT = 0x04
+    const val MOD_LEFT_GUI = 0x08
 
     /** Usage for a lowercase letter 'a'..'z' (HID a=0x04 .. z=0x1D). */
     fun letterUsage(c: Char): Int {

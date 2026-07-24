@@ -53,6 +53,27 @@
     <string name="pen_on">Pen ✓</string>
     <string name="pen_off">Pen</string>
 
+    <!-- Presenter + Shortcuts pads -->
+    <string name="layout_presenter">Presenter</string>
+    <string name="layout_shortcuts">Shortcuts deck</string>
+
+    <!-- Send text -->
+    <string name="send_text">Text…</string>
+    <string name="send_text_title">Type on the connected device</string>
+    <string name="send_text_hint">Type here — or tap your keyboard’s mic to dictate. Sent as real keystrokes (US-QWERTY hosts; unsupported characters are skipped).</string>
+    <string name="send_text_send">Send</string>
+    <!-- %1$d = characters typed so far, %2$d = total. -->
+    <string name="typing_progress_fmt">Typing… %1$d/%2$d</string>
+    <!-- %1$d = characters typed, %2$d = skipped (unmappable). -->
+    <string name="typed_done_fmt">Typed %1$d characters (%2$d skipped).</string>
+    <string name="connect_first">Connect to a device first.</string>
+
+    <!-- Combo actions -->
+    <string name="combo_title">Shortcut (key combo)</string>
+    <string name="combo_custom">Custom…</string>
+    <string name="combo_pick_mods">Hold which modifiers?</string>
+    <string name="combo_pick_key">…plus which key?</string>
+
     <!-- Ergonomics + settings -->
     <string name="dim">Dim</string>
     <string name="immersive">Full-scr</string>
@@ -86,6 +107,8 @@
     <string name="editor_size">Size…</string>
     <string name="editor_color">Color…</string>
     <string name="editor_shape">Shape…</string>
+    <string name="editor_style">Style… (supporter)</string>
+    <string name="style_locked_hint">Styles are the supporter pack — enable the free preview in Settings → About &amp; Support.</string>
     <string name="editor_opacity">Opacity…</string>
     <string name="editor_text_size">Text size…</string>
     <string name="editor_label">Label…</string>
@@ -101,4 +124,10 @@
     <string name="layout_duplicate">Duplicate</string>
     <!-- %1$s = source layout name. -->
     <string name="layout_copy_name_fmt">%1$s (copy)</string>
+
+    <!-- About & Support (the fairness promise) -->
+    <string name="about_title">About &amp; Support…</string>
+    <string name="fairness_promise">Phone Controller is complete for free: every key, every pad, the full editor. No ads. No subscriptions. Ever.\n\nA one-time supporter pack (≈€1, cosmetic button styles only) will exist once the app reaches the Play Store — until then, preview the styles below for free.</string>
+    <string name="supporter_preview">Supporter style preview (free)</string>
+    <string name="support_button">Support the project ♥</string>
 </resources>

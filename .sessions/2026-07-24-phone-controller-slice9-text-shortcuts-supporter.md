@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 9: send-text + voice, combo shortcuts, presenter, supporter groundwork (builder lane)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: fable-5 · high · feature build
 
@@ -71,4 +71,19 @@ green; CI green on PR; merge → tag `phone-controller-v0.9.0` → release verif
 
 ## Result
 
-_(fill on completion)_
+Shipped, all five blocks (A–E). Local verify green: hid-core/capability-core
+45/45 (7 new KeyCharsTest cases — full printable-ASCII coverage, shift-pair
+identities, new usage pins), app compiles vs android.jar (56 classes).
+
+Guard recipes: TextTyper releases Shift belt-and-braces on ANY exit (cancel
+mid-char can't leave it held) and is cancelled on disconnect/destroy/new-job;
+COMBO resolver releases key-then-modifiers in reverse press order; Combos.parse
+is fail-soft (malformed code → no-op button, never a crash); buttonConfigDialog
+rebuilt as label→handler pairs so menu indexes can never drift again; pads still
+APPEND-only in the enum (PRESENTER, SHORTCUTS after NDS).
+
+Fair-IAP posture encoded in code comments (Supporter.kt: "NEVER gate an input")
+and user-visible copy (fairness promise in About + README). SUPPORT_URL points at
+the repo until the owner creates a Ko-fi/Sponsors page (flagged owner-side).
+
+v0.9.0 (versionCode 7). PR/tag/release: control/status.md heartbeat.

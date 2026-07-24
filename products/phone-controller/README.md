@@ -18,10 +18,10 @@ target. Based on the Ideas-Lab plan
 
 ## State
 
-**beta · field-verified against a real host.** Slices 1–8 are built and CI-proven: the
+**beta · field-verified against a real host.** Slices 1–9 are built and CI-proven: the
 capability verdict engine (portable Python + lockstep Kotlin port), the real
 `BluetoothHidDevice` transport, a **combo HID device** (keyboard + gamepad + mouse +
-media remote), the controller UI (eight built-in layouts + a full custom-layout
+media remote), the controller UI (ten built-in layouts + a full custom-layout
 editor, slide-over game pads, analog sticks + gyro, dark controller theme, focus
 mode, landscape mode, rotation-safe connection), and a release pipeline that
 publishes a signed, installable APK. Owner playtest 2026-07-23 (v0.4.0, laptop
@@ -76,6 +76,13 @@ browser/files app when prompted (normal sideload flow — this app is not on a s
      on the emulator's touch screen like a stylus; toggle Pen off to hover the
      cursor without pressing. Portrait stacks screen-over-buttons like a held DS;
      landscape puts the clusters beside the screen.
+   - **Presenter** — a slide clicker: Prev/Next (PageUp/PageDown), Start (F5) /
+     from-here (Shift+F5) / End (Esc) / Blank (B), an on-phone elapsed-talk timer
+     (tap = start/pause, long-press = reset) and a pointer strip.
+   - **Shortcuts deck** — a serverless Stream-Deck: a 4×4 grid of everyday chords
+     (Copy/Paste/Undo/Redo, Alt+Tab, tab controls, Screenshot, Lock…) sent as real
+     key combos — no host software, unlike every macro-deck app. Any custom-layout
+     button can carry a combo too (presets or a fully custom modifiers×key build).
    - **Keyboard** — full QWERTY with digits, punctuation, arrows and hold-capable
      Shift/Ctrl/Alt (two-thumb chords); held keys auto-repeat via the host OS.
    - **Emu keys** — arrows, Z/X/A/S, Enter/Space/Shift/Esc/Tab (the classic emulator
@@ -88,7 +95,17 @@ browser/files app when prompted (normal sideload flow — this app is not on a s
    theme; **Settings → App background…** recolors it (custom layouts can still
    override per-layout), and the **Focus** button enters pure controller mode —
    every control except the pad disappears (plus immersive full-screen) until you
-   tap the small ⛶ chip at the top.
+   tap the small ⛶ chip at the top. **Text…** opens a box that replays whatever you
+   type — with your phone keyboard's swipe, autocorrect and **mic (voice
+   dictation)** — as real keystrokes on the host (US-QWERTY hosts; great for TV
+   search boxes and passwords). The **Connect…** dialog doubles as a host
+   switcher: picking another paired device hops the connection (and its remembered
+   layout) over cleanly.
+
+   **Fairness promise:** the app is complete for free — every key, pad and editor
+   feature, no ads, no subscriptions. A one-time ~€1 supporter pack (cosmetic
+   button styles: gradient/glow fills) is planned for a future Play Store listing;
+   until then Settings → About & Support offers the styles as a free preview.
 5. **In the emulator** (e.g. RetroArch): Settings → Input → Port 1 Controls → map each
    button by pressing it on the phone — or use the Emu-keys pad with the emulator's
    default keyboard binds and map nothing at all. (Emulators generally don't
@@ -141,7 +158,9 @@ mouse + full keyboard + layout presets + slide-over + landscape (S5) → **custo
 layout editor** + turbo + analog sticks + gyro + per-host memory + stale-pairing
 warning (S6, the idea doc's items 6/7/8/10) → per-button colors / shapes / opacity /
 text size + duplicates + pad backgrounds (S7) → dark controller theme + focus mode +
-app-wide background + NDS touch-pad + pen mode (S8, owner recording feedback).
+app-wide background + NDS touch-pad + pen mode (S8, owner recording feedback) →
+send-text+voice, combo shortcuts deck, presenter pad, host switching, supporter
+groundwork (S9, owner-approved brainstorm + fair-IAP research).
 Remaining candidates:
 
 - Foreground volume-key-as-input mapping (idea doc item 9).
