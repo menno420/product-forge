@@ -64,13 +64,21 @@ class DpadView(
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(e: MotionEvent): Boolean {
         when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> apply(directionsAt(e.x, e.y))
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> applyLocal(e.x, e.y, true)
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                apply(emptySet())
+                applyLocal(0f, 0f, false)
                 performClick()
             }
         }
         return true
+    }
+
+    /**
+     * Drive the D-pad from a local touch point (Slice 16 — the unified pad router
+     * calls this per-pointer). [active] false releases all directions.
+     */
+    fun applyLocal(x: Float, y: Float, active: Boolean) {
+        apply(if (active) directionsAt(x, y) else emptySet())
     }
 
     override fun performClick(): Boolean {

@@ -1,11 +1,16 @@
 # product-forge · status
 
-updated: 2026-07-24T18:38:19Z
-phase: phone-controller Slice 15 SHIPPED — custom-layout widgets (sticks/gyro/touchpad) + 8-way D-pad + templates (v0.15.0)
+updated: 2026-07-24T18:56:24Z
+phase: phone-controller Slice 16 IN PROGRESS — fix simultaneous multi-touch (A + steer)
 lane: builder (phone-controller) · owner-live session 2026-07-23
 health: green
 
 ## This session (2026-07-23, owner-live directive)
+**Slice 16 in progress (2026-07-24):** owner Mario Kart bug — can't press A + steer at
+once. Cause: SlidePadRouter on pad root + consuming child widgets block other pointers.
+Fix: per-button consuming touch (hold pattern) + drop router; Android split-touch
+delivers every finger; DpadView keeps glide/diagonals. Card:
+`.sessions/2026-07-24-phone-controller-slice16-multitouch-fix.md`.
 **Slice 15 SHIPPED (2026-07-24):** owner field feedback (NDS on tablet) — presets
 not editable + custom layouts can't add sticks/gyro + wanted D-pad diagonals.
 PadWidgetSpec (LEFT/RIGHT stick, DPAD, touchpad, gyro) + PadPositioned in
