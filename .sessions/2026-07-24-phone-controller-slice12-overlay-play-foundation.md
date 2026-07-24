@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 12: local-play overlay foundation (builder lane)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: fable-5 · high · feature build
 
@@ -63,4 +63,21 @@ CI green on PR; merge → tag `phone-controller-v0.12.0` → stable-signed relea
 
 ## Result
 
-_(fill on completion)_
+Foundation shipped, all four blocks (A-D). Durable core is CI-PROVEN: hid-core
+53/53 (8 new GestureGeometryTest cases — percent→pixel exactness, edge/out-of-range
+clamping, zero-size safety, duration bounds, swipe endpoints, total-duration).
+App compiles vs android.jar (73 classes) incl. the two new services + res/xml
+accessibility config (aapt2 clean).
+
+Architecture decisions recorded: per-button TYPE_APPLICATION_OVERLAY windows (NOT
+one full-screen window) so inter-button gaps pass touches to the game — the correct
+overlay-controller passthrough model; accessibility service is inject-only
+(canRetrieveWindowContent=false — privacy-clean, and the right thing to tell users);
+gesture model is the REAL model (tap = single-point stroke), so the Slice-13
+recorder adds multi-point swipes with zero rework. Guard: overlay windows + handle
+all removed in onDestroy; ACTION_STOP path; both permissions opt-in and gated before
+any service starts.
+
+v0.12.0 (versionCode 10), stable-signed, no HID descriptor change → installs in
+place, no re-pair. Slice 13 = swipe recorder + PadActionType.GESTURE binding +
+per-game profiles. PR/tag/release: control/status.md heartbeat.

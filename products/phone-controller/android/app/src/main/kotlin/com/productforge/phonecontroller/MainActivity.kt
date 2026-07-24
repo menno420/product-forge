@@ -28,8 +28,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings as AndroidSettings
 import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
@@ -70,6 +72,8 @@ import com.productforge.phonecontroller.ui.CustomPadView
 import com.productforge.phonecontroller.ui.GyroDriver
 import com.productforge.phonecontroller.ui.GyroToggle
 import com.productforge.phonecontroller.ui.Haptics
+import com.productforge.phonecontroller.overlay.OverlayPlayService
+import com.productforge.phonecontroller.overlay.TapAccessibilityService
 import com.productforge.phonecontroller.ui.MacroRunner
 import com.productforge.phonecontroller.ui.PadHost
 import com.productforge.phonecontroller.ui.Supporter
@@ -1363,6 +1367,19 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
 
         content.addView(
             Button(this).apply {
+                text = getString(R.string.play_on_phone)
+                isAllCaps = false
+                textSize = 13f
+                ButtonStyler.flatStyle(this, ButtonStyler.SURFACE, cornerDp = 18f)
+                setOnClickListener { playOnPhoneDialog() }
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(8) },
+        )
+
+        content.addView(
+            Button(this).apply {
                 text = getString(R.string.voice_title)
                 isAllCaps = false
                 textSize = 13f
@@ -1396,6 +1413,54 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                 if (currentSelection == "b:${Pad.ANALOG.ordinal}") showSelection(currentSelection)
             }
             .show()
+    }
+
+    /**
+     * Play on this phone (Slice 12) — float a layout over another app and tap the
+     * game underneath. Guides the two opt-in grants (draw-over-apps + the
+     * accessibility tap service), then starts the overlay foreground service.
+     */
+    private fun playOnPhoneDialog() {
+        val layouts = layoutStore.all()
+        if (layouts.isEmpty()) {
+            setDetail(getString(R.string.play_no_layouts))
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.play_on_phone)
+            .setMessage(R.string.play_intro)
+            .setItems(layouts.map { it.name }.toTypedArray()) { _, which ->
+                startOverlayPlay(layouts[which].id)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun startOverlayPlay(layoutId: String) {
+        if (!AndroidSettings.canDrawOverlays(this)) {
+            setDetail(getString(R.string.play_need_overlay))
+            runCatching {
+                startActivity(
+                    Intent(
+                        AndroidSettings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:$packageName"),
+                    ),
+                )
+            }
+            return
+        }
+        if (!TapAccessibilityService.isConnected) {
+            setDetail(getString(R.string.play_need_accessibility))
+            runCatching { startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS)) }
+            return
+        }
+        runCatching {
+            startForegroundService(
+                Intent(this, OverlayPlayService::class.java)
+                    .putExtra(OverlayPlayService.EXTRA_LAYOUT_ID, layoutId),
+            )
+            setDetail(getString(R.string.play_started))
+        }
     }
 
     /**

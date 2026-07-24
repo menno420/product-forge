@@ -1,16 +1,21 @@
 # product-forge · status
 
-updated: 2026-07-24T12:55:33Z
-phase: phone-controller Slice 12 IN PROGRESS — local-play overlay foundation (gesture core + accessibility + overlay)
+updated: 2026-07-24T13:00:52Z
+phase: phone-controller Slice 12 SHIPPED — local-play overlay foundation (gesture core + accessibility + overlay tap/hold) (v0.12.0)
 lane: builder (phone-controller) · owner-live session 2026-07-23
 health: green
 
 ## This session (2026-07-23, owner-live directive)
-**Slice 12 in progress (2026-07-24):** owner greenlit the overlay (OP-Auto-Clicker
-framing) in structured order — hid-core TouchGesture+GestureGeometry (CI-tested),
-TapAccessibilityService, OverlayPlayService (per-button overlay windows, tap/hold
-at position), "Play on this phone…" entry + permission flows. Slice 13 = swipe
-recorder + GESTURE binding. Card:
+**Slice 12 SHIPPED (2026-07-24):** owner greenlit the overlay (OP-Auto-Clicker
+framing) in structured order — hid-core TouchGesture+GestureGeometry (pure, +8
+CI tests = 53/53), TapAccessibilityService (inject-only, canRetrieveWindowContent
+false), OverlayPlayService (per-button TYPE_APPLICATION_OVERLAY windows for correct
+touch passthrough, foreground specialUse svc, tap/hold at button position, drag
+handle + notif stop), "Play on this phone…" Settings entry + opt-in overlay/
+accessibility permission flows. Gesture model is the real model (tap=single-point
+stroke) → Slice 13 recorder/GESTURE/swipes add w/ no rework. No descriptor change.
+v0.12.0 (versionCode 10). Verified pre-push: 53/53 JVM tests, app vs android.jar
+(73 classes). Card:
 `.sessions/2026-07-24-phone-controller-slice12-overlay-play-foundation.md`.
 **Slice 11 SHIPPED (2026-07-24):** owner — voice commands + overlay research
 (anti-bloat rule). VoiceControl (SpeechRecognizer continuous loop, final-results
