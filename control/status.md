@@ -1,11 +1,17 @@
 # product-forge · status
 
-updated: 2026-07-24T12:27:13Z
-phase: phone-controller Slice 11 SHIPPED — voice commands + overlay-mapper research (v0.11.0)
+updated: 2026-07-24T12:55:33Z
+phase: phone-controller Slice 12 IN PROGRESS — local-play overlay foundation (gesture core + accessibility + overlay)
 lane: builder (phone-controller) · owner-live session 2026-07-23
 health: green
 
 ## This session (2026-07-23, owner-live directive)
+**Slice 12 in progress (2026-07-24):** owner greenlit the overlay (OP-Auto-Clicker
+framing) in structured order — hid-core TouchGesture+GestureGeometry (CI-tested),
+TapAccessibilityService, OverlayPlayService (per-button overlay windows, tap/hold
+at position), "Play on this phone…" entry + permission flows. Slice 13 = swipe
+recorder + GESTURE binding. Card:
+`.sessions/2026-07-24-phone-controller-slice12-overlay-play-foundation.md`.
 **Slice 11 SHIPPED (2026-07-24):** owner — voice commands + overlay research
 (anti-bloat rule). VoiceControl (SpeechRecognizer continuous loop, final-results
 matching, offline-preferred, foreground-only, opt-in RECORD_AUDIO; one Settings
