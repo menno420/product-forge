@@ -18,6 +18,10 @@
         android:name="android.permission.BLUETOOTH_ADMIN"
         android:maxSdkVersion="30" />
 
+    <!-- Voice commands (Slice 11): runtime-requested ONLY when the user enables the
+         feature; listening runs foreground-only and prefers on-device recognition. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <!-- Classic BT-HID needs Bluetooth hardware; not required=false so no-BT devices
          can still install and show the capability verdict. -->
     <uses-feature

@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 11: voice commands + overlay/mapper research (builder lane)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: fable-5 · high · feature build
 
@@ -58,4 +58,14 @@ saved pipeline; gate green; CI green on PR; merge → tag `phone-controller-v0.1
 
 ## Result
 
-_(fill on completion)_
+Both deliverables shipped. Voice: VoiceControl.kt (store fail-soft, driver =
+continuous SpeechRecognizer loop, FINAL results only, offline-preferred, one
+action per utterance, foreground-only with onPause stop); ONE Settings entry
+(switch + list + add via the existing pickStepAction pickers — zero new UI
+concepts); RECORD_AUDIO requested only on enable, deny leaves the switch off
+with an honest hint; fires as 120 ms taps via resolveRaw. Research doc:
+docs/overlay-mapper-research-2026-07-24.md (category map w/ verified Mantis
+mechanics, the two injection paths, the two-phone kit only we can build,
+anti-bloat staging rules, explicit non-goals). Local verify green: 45/45 JVM
+tests, app compiles vs android.jar (67 classes). v0.11.0 (versionCode 9),
+stable-signed, no descriptor change → installs in place, no re-pair.

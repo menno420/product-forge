@@ -1,14 +1,19 @@
 # product-forge · status
 
-updated: 2026-07-24T12:23:13Z
-phase: phone-controller Slice 11 IN PROGRESS — voice commands + overlay-mapper research
+updated: 2026-07-24T12:27:13Z
+phase: phone-controller Slice 11 SHIPPED — voice commands + overlay-mapper research (v0.11.0)
 lane: builder (phone-controller) · owner-live session 2026-07-23
 health: green
 
 ## This session (2026-07-23, owner-live directive)
-**Slice 11 in progress (2026-07-24):** owner — voice commands + overlay research
-(anti-bloat rule). VoiceControl (SpeechRecognizer, phrase→action, foreground-only,
-opt-in mic) + docs/overlay-mapper-research-2026-07-24.md. Card:
+**Slice 11 SHIPPED (2026-07-24):** owner — voice commands + overlay research
+(anti-bloat rule). VoiceControl (SpeechRecognizer continuous loop, final-results
+matching, offline-preferred, foreground-only, opt-in RECORD_AUDIO; one Settings
+entry, phrases language-agnostic, fires 120 ms taps via resolveRaw) +
+docs/overlay-mapper-research-2026-07-24.md (Octopus/Mantis category map, the two
+injection paths, two-phone kit, simplicity-first staging). No descriptor change.
+v0.11.0 (versionCode 9). Verified pre-push: 45/45 JVM tests, app vs android.jar
+(67 classes). Card:
 `.sessions/2026-07-24-phone-controller-slice11-voice-commands.md`.
 **Slice 10 SHIPPED (2026-07-24):** owner "continue building the most valuable
 pieces" — layout Share/Import (versioned JSON envelope {"pcl":1}, share sheet +

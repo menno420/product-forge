@@ -76,6 +76,9 @@ import com.productforge.phonecontroller.ui.Supporter
 import com.productforge.phonecontroller.ui.TextTyper
 import com.productforge.phonecontroller.ui.TouchpadConfig
 import com.productforge.phonecontroller.ui.TurboEngine
+import com.productforge.phonecontroller.ui.VoiceCommand
+import com.productforge.phonecontroller.ui.VoiceDriver
+import com.productforge.phonecontroller.ui.VoiceStore
 
 class MainActivity : Activity(), HidTransportListener, PadHost {
 
@@ -119,6 +122,39 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         MacroRunner { type, code ->
             if (type == PadActionType.MACRO.name) null else resolveRaw(type, code)
         }
+    }
+
+    private val voiceStore by lazy { VoiceStore(prefs()) }
+    private val voiceDriver by lazy {
+        VoiceDriver(this, { voiceStore.all() }) { command -> fireVoiceCommand(command) }
+    }
+
+    /** Voice commands fire as a short tap (press + timed release). */
+    private fun fireVoiceCommand(command: VoiceCommand) {
+        val action = resolveRaw(command.actionType, command.actionCode) ?: return
+        action(true)
+        statusView.postDelayed({ action(false) }, VOICE_TAP_MS)
+        setDetail(getString(R.string.voice_fired_fmt, command.phrase, command.actionLabel))
+    }
+
+    private fun voiceEnabled(): Boolean = prefs().getBoolean(PREF_VOICE, false)
+
+    private fun hasMicPermission(): Boolean =
+        checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
+    private fun startVoiceIfEnabled() {
+        if (voiceEnabled() && hasMicPermission()) voiceDriver.start()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        startVoiceIfEnabled()
+    }
+
+    override fun onPause() {
+        // Foreground-only listening: the mic is never live while the app isn't.
+        voiceDriver.stop()
+        super.onPause()
     }
 
     private val gyroDriver by lazy {
@@ -168,6 +204,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
     }
 
     override fun onDestroy() {
+        voiceDriver.stop()
         textTyper.cancel()
         macroRunner.cancel()
         gyroDriver.stop()
@@ -237,11 +274,24 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         permissions: Array<out String>,
         grantResults: IntArray,
     ) {
-        if (requestCode != RC_BLUETOOTH) return
-        if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-            startTransport()
-        } else {
-            setStatus(getString(R.string.permission_denied))
+        when (requestCode) {
+            RC_BLUETOOTH -> {
+                if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+                    startTransport()
+                } else {
+                    setStatus(getString(R.string.permission_denied))
+                }
+            }
+            RC_MIC -> {
+                if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+                    prefs().edit().putBoolean(PREF_VOICE, true).apply()
+                    startVoiceIfEnabled()
+                    setDetail(getString(R.string.voice_enabled_hint))
+                } else {
+                    prefs().edit().putBoolean(PREF_VOICE, false).apply()
+                    setDetail(getString(R.string.voice_mic_denied))
+                }
+            }
         }
     }
 
@@ -1313,6 +1363,19 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
 
         content.addView(
             Button(this).apply {
+                text = getString(R.string.voice_title)
+                isAllCaps = false
+                textSize = 13f
+                ButtonStyler.flatStyle(this, ButtonStyler.SURFACE, cornerDp = 18f)
+                setOnClickListener { voiceCommandsDialog() }
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+            ),
+        )
+
+        content.addView(
+            Button(this).apply {
                 text = getString(R.string.about_title)
                 isAllCaps = false
                 textSize = 13f
@@ -1332,6 +1395,93 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                 // Deadzone applies on pad rebuild; refresh if the analog pad is live.
                 if (currentSelection == "b:${Pad.ANALOG.ordinal}") showSelection(currentSelection)
             }
+            .show()
+    }
+
+    /**
+     * Voice commands (Slice 11) — the WHOLE feature lives in this one dialog:
+     * enable switch, phrase list (tap to remove), and Add. Phrases fire as taps
+     * through the shared action vocabulary; listening is foreground-only.
+     */
+    private fun voiceCommandsDialog() {
+        val pad = dp(16)
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, 0)
+        }
+        if (!voiceDriver.available) {
+            content.addView(TextView(this).apply {
+                text = getString(R.string.voice_unavailable)
+                textSize = 13f
+            })
+        }
+        content.addView(
+            Switch(this).apply {
+                text = getString(R.string.voice_enable)
+                isChecked = voiceEnabled() && hasMicPermission()
+                isEnabled = voiceDriver.available
+                setOnCheckedChangeListener { _, checked ->
+                    if (checked) {
+                        if (hasMicPermission()) {
+                            prefs().edit().putBoolean(PREF_VOICE, true).apply()
+                            voiceDriver.start()
+                            setDetail(getString(R.string.voice_enabled_hint))
+                        } else {
+                            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), RC_MIC)
+                        }
+                    } else {
+                        prefs().edit().putBoolean(PREF_VOICE, false).apply()
+                        voiceDriver.stop()
+                    }
+                }
+            },
+        )
+        content.addView(
+            TextView(this).apply {
+                text = getString(R.string.voice_hint)
+                textSize = 12f
+                setTextColor(0xFF9AA7B0.toInt())
+                setPadding(0, dp(8), 0, dp(4))
+            },
+        )
+        val commands = voiceStore.all()
+        commands.forEachIndexed { index, command ->
+            content.addView(
+                Button(this).apply {
+                    text = getString(R.string.voice_row_fmt, command.phrase, command.actionLabel)
+                    isAllCaps = false
+                    textSize = 13f
+                    ButtonStyler.flatStyle(this, ButtonStyler.SURFACE)
+                    setOnClickListener {
+                        AlertDialog.Builder(this@MainActivity)
+                            .setTitle(command.phrase)
+                            .setPositiveButton(R.string.voice_remove) { _, _ ->
+                                voiceStore.removeAt(index)
+                                voiceCommandsDialog()
+                            }
+                            .setNegativeButton(android.R.string.cancel, null)
+                            .show()
+                    }
+                },
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.voice_title)
+            .setView(ScrollView(this).apply { addView(content) })
+            .setPositiveButton(R.string.voice_add) { _, _ ->
+                promptText(getString(R.string.voice_phrase_prompt), "") { phrase ->
+                    if (phrase.isNotBlank()) {
+                        pickStepAction { type, code, label ->
+                            voiceStore.add(VoiceCommand(phrase.trim(), type, code, label))
+                            voiceCommandsDialog()
+                        }
+                    }
+                }
+            }
+            .setNegativeButton(android.R.string.ok, null)
             .show()
     }
 
@@ -1602,9 +1752,11 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
 
     private companion object {
         const val RC_BLUETOOTH = 41
+        const val RC_MIC = 42
         const val DISCOVERABLE_SECONDS = 120
         const val SWATCH_COLUMNS = 4
         const val PAUSE_STEP_MS = 400L
+        const val VOICE_TAP_MS = 120L
         const val PREF_SELECTION = "layout_sel"
         const val PREF_SENSITIVITY = "touchpad_sensitivity"
         const val PREF_HAPTICS = "haptics"
@@ -1618,6 +1770,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         const val PREF_TURBO_HZ = "turbo_hz"
         const val PREF_SCROLL_INVERT = "scroll_invert"
         const val PREF_VOLKEYS = "volume_keys_mode"
+        const val PREF_VOICE = "voice_enabled"
 
         /** Swap to Ko-fi/GitHub Sponsors when the owner creates one (Slice-9 card). */
         const val SUPPORT_URL = "https://github.com/menno420/product-forge"
