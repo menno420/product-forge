@@ -1,6 +1,6 @@
 # product-forge · status
 
-updated: 2026-07-24T08:38:00Z
+updated: 2026-07-24T08:22:02Z
 phase: phone-controller Slice 8 SHIPPED — dark controller theme, focus mode, app background, NDS touch+pad, swatch picker (v0.8.0)
 lane: builder (phone-controller) · owner-live session 2026-07-23
 health: green
