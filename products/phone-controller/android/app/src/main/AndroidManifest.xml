@@ -24,7 +24,11 @@
         android:name="android.hardware.bluetooth"
         android:required="false" />
 
-    <application android:label="@string/app_name">
+    <!-- DeviceDefault dark, no action bar: the controller IS the screen (Slice 8) —
+         dark widgets + dark dialogs for free, no AndroidX theme dependency. -->
+    <application
+        android:label="@string/app_name"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
         <!-- The controller UI. exported=true so it is launchable as the app's MAIN
              activity. configChanges: rotation must NOT recreate the activity — a
              recreate tears down the HID registration and drops the live host

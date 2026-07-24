@@ -1,13 +1,14 @@
 /*
  * MainActivity — the controller (Slice 4 usable · Slice 5 layouts/landscape ·
- * Slice 6 editor/sticks/ergonomics).
+ * Slice 6 editor/sticks/ergonomics · Slice 8 dark theme/focus/NDS).
  *
  * Owns: permission flow → live probe → pairing actions; the layout selection
  * (built-in presets + user layouts, persisted globally AND per connected host);
- * the custom-layout editor; turbo + gyro lifecycles; dim/immersive toggles; the
- * stale-pairing warning (hosts cache the HID descriptor per bond — a bond made
- * before an app update with a descriptor change silently drops the new reports;
- * field-diagnosed 2026-07-23).
+ * the custom-layout editor; turbo + gyro lifecycles; dim/immersive/focus toggles
+ * (focus = pure controller mode: all chrome hidden, translucent exit chip); the
+ * app-wide background; the stale-pairing warning (hosts cache the HID descriptor
+ * per bond — a bond made before an app update with a descriptor change silently
+ * drops the new reports; field-diagnosed 2026-07-23).
  *
  * Selection keys: "b:<ordinal>" = built-in pad, "c:<id>" = custom layout.
  * Still plain android.app.Activity + programmatic widgets — no AndroidX.
@@ -24,6 +25,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.text.InputType
@@ -82,9 +84,15 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
     private var lastDetail: CharSequence = ""
     private var dimmed = false
     private var immersive = false
+    private var focusMode = false
     private var autoConnectAttempted = false
     private var editingLayout: CustomLayout? = null
     private var editingView: CustomPadView? = null
+
+    /** Chrome hidden by focus mode (status/detail/action rows or the side panel). */
+    private val chromeViews = mutableListOf<View>()
+    private var focusChip: TextView? = null
+    private var rootFrame: FrameLayout? = null
 
     private fun prefs() = getPreferences(Context.MODE_PRIVATE)
 
@@ -222,12 +230,44 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         }
     }
 
+    /**
+     * Pure controller mode (Slice 8, owner ask): hide ALL chrome so only the pad is
+     * on screen, with a small translucent chip to come back. Entering also goes
+     * immersive; exiting restores. Blocked while the editor is open (Save would be
+     * unreachable).
+     */
+    private fun setFocusMode(on: Boolean) {
+        if (on && editingLayout != null) {
+            setDetail(getString(R.string.focus_blocked_editing))
+            return
+        }
+        if (focusMode == on) return
+        focusMode = on
+        applyFocus()
+        if (immersive != on) toggleImmersive()
+    }
+
+    private fun applyFocus() {
+        chromeViews.forEach { it.visibility = if (focusMode) View.GONE else View.VISIBLE }
+        focusChip?.visibility = if (focusMode) View.VISIBLE else View.GONE
+    }
+
     // --- HidTransportListener ---------------------------------------------------------
 
     override fun onVerdict(verdict: Verdict) {
         runOnUiThread {
             setStatus(getString(R.string.verdict_fmt, verdict.code.name, verdict.headline))
-            setDetail(if (verdict.coreLoopAvailable) "" else verdict.reason)
+            // A radio that is simply OFF would otherwise probe as a fallback verdict —
+            // say the honest, actionable thing instead (owner recording, 2026-07-24).
+            val btOff = (getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)
+                ?.adapter?.isEnabled == false
+            setDetail(
+                when {
+                    verdict.coreLoopAvailable -> ""
+                    btOff -> getString(R.string.bt_off_hint)
+                    else -> verdict.reason
+                },
+            )
         }
     }
 
@@ -334,6 +374,8 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
 
     // --- layout selection ----------------------------------------------------------------
 
+    // NDS is appended, not inserted: saved selections are "b:<ordinal>" strings, so
+    // existing ordinals must stay stable across updates.
     private enum class Pad(val labelRes: Int) {
         FULL_GAMEPAD(R.string.layout_full_gamepad),
         GBA(R.string.layout_gba),
@@ -342,6 +384,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         KEYBOARD(R.string.layout_keyboard),
         EMU_KEYS(R.string.layout_emu_keys),
         MEDIA(R.string.layout_media),
+        NDS(R.string.layout_nds),
     }
 
     private fun selectionKeys(): List<String> =
@@ -353,6 +396,28 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
     private fun selectionExists(key: String): Boolean = key in selectionKeys()
 
     private fun deadzone(): Float = prefs().getFloat(PREF_DEADZONE, 0.08f)
+
+    /** App-wide background (Slice 8). 0 = unset sentinel → default dark slate. */
+    private fun appBg(): Int {
+        val stored = prefs().getInt(PREF_APP_BG, 0)
+        return if (stored == 0) ButtonStyler.DEFAULT_APP_BG else stored
+    }
+
+    private fun pickAppBackground() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.app_background)
+            .setItems(ButtonStyler.PAD_BACKGROUNDS.map { it.first }.toTypedArray()) { _, which ->
+                prefs().edit().putInt(PREF_APP_BG, ButtonStyler.PAD_BACKGROUNDS[which].second ?: 0).apply()
+                applyAppBackground()
+            }
+            .show()
+    }
+
+    private fun applyAppBackground() {
+        rootFrame?.setBackgroundColor(appBg())
+        window.statusBarColor = appBg()
+        window.navigationBarColor = appBg()
+    }
 
     private fun showSelection(key: String) {
         // Leaving a pad mid-hold: views vanish and UP events never arrive, so zero
@@ -392,6 +457,13 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                 Pad.KEYBOARD -> ControllerPads.buildKeyboardPad(this, this)
                 Pad.EMU_KEYS -> ControllerPads.buildEmuKeysPad(this, this)
                 Pad.MEDIA -> ControllerPads.buildMediaPad(this, this)
+                Pad.NDS -> ControllerPads.buildNdsPad(
+                    this, this, touchpadConfig,
+                    prefs().getBoolean(PREF_NDS_PEN, true),
+                    { on -> prefs().edit().putBoolean(PREF_NDS_PEN, on).apply() },
+                    getString(R.string.pen_on), getString(R.string.pen_off),
+                    getString(R.string.sensitivity),
+                )
             }
         }
         padContainer.addView(
@@ -546,6 +618,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                         text = label
                         isAllCaps = false
                         textSize = 13f
+                        ButtonStyler.flatStyle(this, ButtonStyler.SURFACE, cornerDp = 18f)
                         setOnClickListener { onClick() }
                     },
                     LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
@@ -642,23 +715,56 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             .show()
     }
 
+    /** A real swatch grid (Slice 8) — colored circles beat a list of color names. */
     private fun pickColor(spec: PadButtonSpec) {
-        val names = listOf(getString(R.string.color_default)) + ButtonStyler.PALETTE.map { it.first }
-        AlertDialog.Builder(this)
-            .setTitle(R.string.editor_color)
-            .setItems(names.toTypedArray()) { _, which ->
-                spec.colorArgb = if (which == 0) {
-                    null
-                } else {
-                    val base = ButtonStyler.PALETTE[which - 1].second
-                    // Preserve the current opacity choice when recoloring.
-                    val alpha = spec.colorArgb?.ushr(24) ?: 0xFF
-                    ButtonStyler.withAlpha(base, alpha)
+        val entries: List<Pair<String, Int?>> =
+            listOf(getString(R.string.color_default) to null) + ButtonStyler.PALETTE
+        var dialog: AlertDialog? = null
+        val grid = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), dp(8))
+        }
+        entries.chunked(SWATCH_COLUMNS).forEach { rowEntries ->
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            rowEntries.forEach { (name, color) ->
+                val swatch = TextView(this).apply {
+                    gravity = Gravity.CENTER
+                    text = if (color == null) "∅" else ""
+                    textSize = 18f
+                    setTextColor(0xFFB0BEC5.toInt())
+                    background = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(color ?: ButtonStyler.SURFACE)
+                        if (color == null) setStroke(dp(2), 0xFF78909C.toInt())
+                    }
+                    contentDescription = name
+                    setOnClickListener {
+                        spec.colorArgb = color?.let { base ->
+                            // Preserve the current opacity choice when recoloring.
+                            ButtonStyler.withAlpha(base, spec.colorArgb?.ushr(24) ?: 0xFF)
+                        }
+                        editingView?.rebuild()
+                        dialog?.dismiss()
+                    }
                 }
-                editingView?.rebuild()
+                row.addView(swatch, swatchCellParams())
             }
+            repeat(SWATCH_COLUMNS - rowEntries.size) {
+                row.addView(View(this), swatchCellParams())
+            }
+            grid.addView(row)
+        }
+        dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.editor_color)
+            .setView(ScrollView(this).apply { addView(grid) })
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
+
+    private fun swatchCellParams(): LinearLayout.LayoutParams =
+        LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+            setMargins(dp(6), dp(6), dp(6), dp(6))
+        }
 
     private fun pickShape(spec: PadButtonSpec) {
         val shapes = PadShape.entries
@@ -805,6 +911,19 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             },
         )
 
+        content.addView(
+            Button(this).apply {
+                text = getString(R.string.app_background)
+                isAllCaps = false
+                textSize = 13f
+                ButtonStyler.flatStyle(this, ButtonStyler.SURFACE, cornerDp = 18f)
+                setOnClickListener { pickAppBackground() }
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(8) },
+        )
+
         AlertDialog.Builder(this)
             .setTitle(R.string.settings_title)
             .setView(ScrollView(this).apply { addView(content) })
@@ -864,25 +983,65 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             text = getString(labelRes)
             isAllCaps = false
             textSize = 13f
+            ButtonStyler.flatStyle(this, ButtonStyler.SURFACE, cornerDp = 18f)
             setOnClickListener { onClick() }
         }
 
     private fun buildUi() {
+        chromeViews.clear()
         statusView = TextView(this).apply {
-            textSize = 15f
+            textSize = 14f
+            setTextColor(0xFFECEFF1.toInt())
             setPadding(dp(12), dp(8), dp(12), dp(2))
             text = lastStatus
         }
         detailView = TextView(this).apply {
             textSize = 12f
+            setTextColor(0xFF9AA7B0.toInt())
             setPadding(dp(12), 0, dp(12), dp(2))
             text = lastDetail
         }
         padContainer = FrameLayout(this).apply { setPadding(dp(6), 0, dp(6), dp(6)) }
 
         val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        setContentView(if (landscape) buildLandscapeRoot() else buildPortraitRoot())
+        val content = if (landscape) buildLandscapeRoot() else buildPortraitRoot()
+
+        // The focus-exit chip floats above the pad, top-center (the least-populated
+        // corner of every built-in pad), translucent so it never dominates.
+        val chip = TextView(this).apply {
+            text = getString(R.string.focus_exit_chip)
+            textSize = 18f
+            gravity = Gravity.CENTER
+            setTextColor(0xFFECEFF1.toInt())
+            alpha = 0.5f
+            background = GradientDrawable().apply {
+                setColor(0x99000000.toInt())
+                cornerRadius = dp(10).toFloat()
+            }
+            visibility = View.GONE
+            setOnClickListener { setFocusMode(false) }
+        }
+        focusChip = chip
+
+        val root = FrameLayout(this).apply {
+            setBackgroundColor(appBg())
+            addView(
+                content,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT,
+                ),
+            )
+            addView(
+                chip,
+                FrameLayout.LayoutParams(dp(44), dp(30), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+                    .apply { topMargin = dp(4) },
+            )
+        }
+        rootFrame = root
+        setContentView(root)
+        applyAppBackground()
         editingLayout?.let { startEditor(it) } ?: showSelection(currentSelection)
+        applyFocus()
     }
 
     private fun actionButtons(): List<Button> = listOf(
@@ -891,6 +1050,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         actionButton(R.string.reprobe) { ensurePermissionsThenStart() },
         actionButton(R.string.dim) { toggleDim() },
         actionButton(R.string.immersive) { toggleImmersive() },
+        actionButton(R.string.focus) { setFocusMode(true) },
         actionButton(R.string.settings_title) { openSettings() },
     )
 
@@ -917,6 +1077,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             addView(TextView(this@MainActivity).apply { text = getString(R.string.layout_label); textSize = 13f })
             addView(layoutSpinner(), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         }
+        chromeViews += listOf<View>(statusView, detailView, row1, row2, spinnerRow)
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(statusView)
@@ -943,6 +1104,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                 ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT),
             )
         }
+        chromeViews += panel
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             addView(panel, LinearLayout.LayoutParams(dp(190), ViewGroup.LayoutParams.MATCH_PARENT))
@@ -953,6 +1115,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
     private companion object {
         const val RC_BLUETOOTH = 41
         const val DISCOVERABLE_SECONDS = 120
+        const val SWATCH_COLUMNS = 4
         const val PREF_SELECTION = "layout_sel"
         const val PREF_SENSITIVITY = "touchpad_sensitivity"
         const val PREF_HAPTICS = "haptics"
@@ -960,5 +1123,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         const val PREF_LAST_HOST = "last_host"
         const val PREF_DESC_PREFIX = "desc_"
         const val PREF_HOST_LAYOUT_PREFIX = "host_layout_"
+        const val PREF_APP_BG = "app_bg"
+        const val PREF_NDS_PEN = "nds_pen"
     }
 }

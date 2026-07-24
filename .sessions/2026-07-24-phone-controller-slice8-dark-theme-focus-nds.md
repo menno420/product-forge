@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 8: dark theme, focus mode, app background, NDS pad (builder lane)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: fable-5 · high · feature build
 
@@ -62,4 +62,16 @@ check) green on the PR; release cut by `phone-controller-v0.8.0` tag after merge
 
 ## Result
 
-_(fill on completion)_
+Shipped as designed, all five feature blocks (A–E). Verified pre-push with the
+local no-Gradle pipeline (now saved as a script for future slices —
+`scratchpad/build8/compile.sh` pattern: kotlinc-embeddable core compile → 38/38
+JUnit → aapt2 R-gen → app compile vs android.jar, 49 classes, zero errors).
+Descriptor untouched → same fingerprint, no stale-pairing warning, no re-pair.
+
+Guard recipes carried forward: pen release checks the flag captured at pen-DOWN
+(toggling Pen mid-stroke can't leak a held LEFT button); NDS appended to the Pad
+enum LAST (saved `b:<ordinal>` selections stay stable); focus mode blocked while
+the editor is open (Save would be unreachable); pressed-state variants lighten
+dark bases / darken bright ones so feedback stays visible in both directions.
+
+v0.8.0 (versionCode 6). PR + tag + release: see control/status.md heartbeat.

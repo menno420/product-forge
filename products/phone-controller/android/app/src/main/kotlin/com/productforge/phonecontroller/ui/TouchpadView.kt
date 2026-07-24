@@ -32,10 +32,21 @@ class TouchpadView(context: Context, private val listener: Listener) : View(cont
         fun onMove(dx: Int, dy: Int)
         fun onScroll(notches: Int)
         fun onTap(button: MouseButton)
+
+        /** Pen-mode contact state (held LEFT button). Only fired when [penMode] is on. */
+        fun onPen(down: Boolean) {}
     }
 
     /** Pointer-speed multiplier (0.5..3.0), set by the sensitivity slider. */
     var sensitivity: Float = 1.0f
+
+    /**
+     * Stylus semantics for DS-style touch screens (Slice 8): finger contact = held
+     * LEFT button, so a drag DRAWS on the host instead of hovering — exactly a DS
+     * stylus. Off = classic touchpad (drag hovers, tap clicks). Toggling mid-gesture
+     * is safe: the release path checks the flag captured at pen-down.
+     */
+    var penMode: Boolean = false
 
     private val density = resources.displayMetrics.density
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
@@ -48,10 +59,15 @@ class TouchpadView(context: Context, private val listener: Listener) : View(cont
     private var remX = 0f
     private var remY = 0f
     private var scrollRemDp = 0f
+    private var penDown = false
 
     init {
-        // A visible, slightly recessed surface so the trackpad area reads as one.
-        setBackgroundColor(0x14808080)
+        // A visible, slightly raised panel so the trackpad area reads as one surface
+        // (rounded to match the Slice-8 dark theme).
+        background = android.graphics.drawable.GradientDrawable().apply {
+            setColor(0x14A9B4C0)
+            cornerRadius = 12f * resources.displayMetrics.density
+        }
     }
 
     private fun avgX(e: MotionEvent): Float {
@@ -78,6 +94,10 @@ class TouchpadView(context: Context, private val listener: Listener) : View(cont
                 remX = 0f
                 remY = 0f
                 scrollRemDp = 0f
+                if (penMode) {
+                    penDown = true
+                    listener.onPen(true)
+                }
             }
             MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_POINTER_UP -> {
                 // Finger count changed: re-anchor on the new centroid so the pointer
@@ -121,13 +141,24 @@ class TouchpadView(context: Context, private val listener: Listener) : View(cont
                 }
             }
             MotionEvent.ACTION_UP -> {
-                val quick = e.eventTime - downTime < TAP_MS
-                if (quick && !movedBeyondSlop) {
-                    listener.onTap(if (maxPointers >= 2) MouseButton.RIGHT else MouseButton.LEFT)
+                if (penDown) {
+                    // Pen contact IS the press — the up is the release, never also a tap.
+                    penDown = false
+                    listener.onPen(false)
+                } else {
+                    val quick = e.eventTime - downTime < TAP_MS
+                    if (quick && !movedBeyondSlop) {
+                        listener.onTap(if (maxPointers >= 2) MouseButton.RIGHT else MouseButton.LEFT)
+                    }
                 }
                 performClick()
             }
-            MotionEvent.ACTION_CANCEL -> { /* nothing held — motion is stateless */ }
+            MotionEvent.ACTION_CANCEL -> {
+                if (penDown) {
+                    penDown = false
+                    listener.onPen(false)
+                }
+            }
         }
         return true
     }

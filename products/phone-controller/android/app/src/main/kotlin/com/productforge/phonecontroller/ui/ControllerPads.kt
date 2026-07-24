@@ -31,6 +31,7 @@ package com.productforge.phonecontroller.ui
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.res.Configuration
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
@@ -253,7 +254,7 @@ object ControllerPads {
 
         val r0 = mutableListOf<View>()
         for (n in 1..12) {
-            r0.add(k("F$n", KeyUsage.F1 + (n - 1)).apply { textSize = 10f })
+            r0.add(k("F$n", KeyUsage.F1 + (n - 1)))
         }
 
         val r1 = mutableListOf<View>(k("ESC", KeyUsage.ESCAPE, 1.4f))
@@ -361,6 +362,147 @@ object ControllerPads {
         }
     }
 
+    // ---- NDS pad (touch screen + DS button set, Slice 8) --------------------------------
+
+    /**
+     * Nintendo-DS-style combo pad: a touch-screen area (the DS bottom screen) plus the
+     * DS button set — D-pad, X/A/B/Y in Nintendo positions (X top, Y left, A right,
+     * B bottom), L/R, Start/Select. The touch area defaults to PEN mode: finger
+     * contact = held LEFT button, so drags DRAW on the emulator's touch screen like a
+     * stylus; the Pen toggle switches to hover (classic touchpad) for repositioning.
+     * Portrait stacks screen-over-buttons like a held DS; landscape puts the clusters
+     * beside the screen like a DS on its side.
+     */
+    fun buildNdsPad(
+        context: Context,
+        host: PadHost,
+        config: TouchpadConfig,
+        penEnabled: Boolean,
+        onPenToggled: (Boolean) -> Unit,
+        penOnLabel: String,
+        penOffLabel: String,
+        sensitivityLabel: String,
+    ): View {
+        val b = Builder(context)
+
+        val surface = TouchpadView(
+            context,
+            object : TouchpadView.Listener {
+                override fun onMove(dx: Int, dy: Int) = host.onMouseMove(dx, dy)
+                override fun onScroll(notches: Int) = host.onMouseScroll(notches)
+                override fun onTap(button: MouseButton) = host.onMouseClick(button)
+                override fun onPen(down: Boolean) = host.onMouseButton(MouseButton.LEFT, down)
+            },
+        ).apply {
+            sensitivity = config.sensitivity
+            penMode = penEnabled
+        }
+
+        val penButton = b.tap(if (penEnabled) penOnLabel else penOffLabel) {}
+        penButton.setOnClickListener {
+            Haptics.tick(penButton)
+            surface.penMode = !surface.penMode
+            penButton.text = if (surface.penMode) penOnLabel else penOffLabel
+            onPenToggled(surface.penMode)
+        }
+
+        val slider = SeekBar(context).apply {
+            max = SENS_STEPS
+            progress = ((config.sensitivity - SENS_MIN) / (SENS_MAX - SENS_MIN) * SENS_STEPS)
+                .toInt().coerceIn(0, SENS_STEPS)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val s = SENS_MIN + (SENS_MAX - SENS_MIN) * progress / SENS_STEPS
+                    surface.sensitivity = s
+                    config.sensitivity = s
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        val controlRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(
+                TextView(context).apply { text = sensitivityLabel; textSize = 12f },
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT),
+            )
+            addView(slider, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(penButton, LinearLayout.LayoutParams(b.dp(96), LinearLayout.LayoutParams.WRAP_CONTENT))
+        }
+
+        // DS face diamond: X top, Y left, A right, B bottom (Nintendo positions).
+        val diamond = b.grid3(
+            null, b.slideTinted("X", TINT_X) { d -> host.onGamepadButton(GamepadButton.X, d) }, null,
+            b.slideTinted("Y", TINT_Y) { d -> host.onGamepadButton(GamepadButton.Y, d) }, null,
+            b.slideTinted("A", TINT_A) { d -> host.onGamepadButton(GamepadButton.A, d) },
+            null, b.slideTinted("B", TINT_B) { d -> host.onGamepadButton(GamepadButton.B, d) }, null,
+        )
+        val dpad = b.dpadGrid(host)
+
+        val landscape =
+            context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        val root: ViewGroup = if (landscape) {
+            val leftCol = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(
+                    b.slide("L") { d -> host.onGamepadButton(GamepadButton.L1, d) },
+                    LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 0.6f),
+                )
+                addView(dpad, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 2.4f))
+                addView(
+                    b.slide("SELECT") { d -> host.onGamepadButton(GamepadButton.SELECT, d) },
+                    LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 0.6f),
+                )
+            }
+            val centerCol = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(surface, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+                addView(controlRow)
+            }
+            val rightCol = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(
+                    b.slide("R") { d -> host.onGamepadButton(GamepadButton.R1, d) },
+                    LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 0.6f),
+                )
+                addView(diamond, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 2.4f))
+                addView(
+                    b.slide("START") { d -> host.onGamepadButton(GamepadButton.START, d) },
+                    LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 0.6f),
+                )
+            }
+            LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(leftCol, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1.15f))
+                addView(centerCol, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1.7f))
+                addView(rightCol, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1.15f))
+            }
+        } else {
+            val rail = b.row(
+                0.7f,
+                b.slide("L") { d -> host.onGamepadButton(GamepadButton.L1, d) },
+                b.slide("SELECT") { d -> host.onGamepadButton(GamepadButton.SELECT, d) },
+                b.slide("START") { d -> host.onGamepadButton(GamepadButton.START, d) },
+                b.slide("R") { d -> host.onGamepadButton(GamepadButton.R1, d) },
+            )
+            val clusters = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(dpad, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 2f))
+                addView(b.gap(0.3f))
+                addView(diamond, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 2f))
+            }
+            LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(rail, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 0.7f))
+                addView(surface, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 2.5f))
+                addView(controlRow)
+                addView(clusters, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 2.2f))
+            }
+        }
+        return b.slidePadRoot(root)
+    }
+
     // ---- media (tap semantics, unchanged) ----------------------------------------------
 
     fun buildMediaPad(context: Context, host: PadHost): View {
@@ -378,13 +520,14 @@ object ControllerPads {
     private const val SENS_MAX = 3.0f
     private const val SENS_STEPS = 25
 
-    // Classic face-button tints (soft alpha over the default button look).
+    // Classic face-button colors, solid since the Slice-8 dark theme (console-style
+    // pop on the dark surface; pressed states darken via ButtonStyler.flatStyle).
     // Plain vals: hex literals above Int.MAX_VALUE need .toInt(), which is not a
     // constant expression.
-    private val TINT_A = 0x8043A047.toInt() // green
-    private val TINT_B = 0x80E53935.toInt() // red
-    private val TINT_X = 0x801E88E5.toInt() // blue
-    private val TINT_Y = 0x80FDD835.toInt() // yellow
+    private val TINT_A = 0xFF43A047.toInt() // green
+    private val TINT_B = 0xFFE53935.toInt() // red
+    private val TINT_X = 0xFF1E88E5.toInt() // blue
+    private val TINT_Y = 0xFFFDD835.toInt() // yellow
 
     /** Small per-pad widget factory (dp math, button shapes, slide-pad assembly). */
     private class Builder(val context: Context) {
@@ -404,10 +547,10 @@ object ControllerPads {
                 slideActions[this] = onChange
             }
 
-        /** A slide button with a classic face tint (subtle, over the default look). */
+        /** A slide button in a classic face color (flat-styled, auto-contrast text). */
         fun slideTinted(label: String, argb: Int, onChange: (down: Boolean) -> Unit): Button =
             slide(label, onChange).apply {
-                backgroundTintList = android.content.res.ColorStateList.valueOf(argb)
+                ButtonStyler.flatStyle(this, argb)
             }
 
         /** Wire the router onto a finished slide-pad tree. */
@@ -462,8 +605,12 @@ object ControllerPads {
         private fun base(label: String): Button = Button(context).apply {
             text = label
             isAllCaps = false
-            textSize = 16f
+            // Auto-size instead of a fixed size: long labels (SELECT) shrink to fit
+            // one line instead of wrapping (owner recording, 2026-07-24).
+            maxLines = 1
+            setAutoSizeTextTypeUniformWithConfiguration(9, 16, 1, TypedValue.COMPLEX_UNIT_SP)
             minimumHeight = dp(48)
+            ButtonStyler.flatStyle(this, ButtonStyler.SURFACE)
         }
 
         fun gap(weight: Float): View = View(context).apply {

@@ -27,7 +27,7 @@ android/
     src/main/AndroidManifest.xml                    # configChanges: rotation keeps the connection
     src/main/res/values/strings.xml
     src/main/kotlin/.../MainActivity.kt             # permissions + status + layout picker (portrait/landscape)
-    src/main/kotlin/.../ui/ControllerPads.kt        # six layouts + SlidePadRouter (glide between buttons)
+    src/main/kotlin/.../ui/ControllerPads.kt        # eight layouts + SlidePadRouter (glide between buttons)
     src/main/kotlin/.../ui/TouchpadView.kt          # mouse surface (drag/tap/two-finger gestures)
     src/main/kotlin/.../transport/BluetoothHidDeviceTransport.kt  # the real transport
 ```
@@ -40,8 +40,8 @@ One SDP record (`SUBCLASS1_COMBO`, name **“Phone Controller”**) with four re
 |---|---|---|---|
 | 1 | Consumer Control | 1 byte (7 button bits + pad) | media remote (Slice-2 layout, unchanged) |
 | 2 | Keyboard | 8 bytes (modifiers + reserved + 6-key array) | Keyboard + Emu-keys pads — standard BT keyboard |
-| 3 | Gamepad | 7 bytes (16 buttons, hat D-pad, sticks X/Y + Z/RZ) | Full-gamepad, GBA, Analog + custom pads |
-| 4 | Mouse (relative) | 4 bytes (3 buttons, dx, dy, wheel) | Touchpad pad — standard BT mouse |
+| 3 | Gamepad | 7 bytes (16 buttons, hat D-pad, sticks X/Y + Z/RZ) | Full-gamepad, GBA, Analog, NDS + custom pads |
+| 4 | Mouse (relative) | 4 bytes (3 buttons, dx, dy, wheel) | Touchpad + NDS touch screen — standard BT mouse |
 
 Gamepad button bits follow the Linux-kernel convention (bit0=A/south … bit11=Start,
 bits 2/5 skipped), so an Android receiver yields `KEYCODE_BUTTON_A/B/X/Y/L1/R1/

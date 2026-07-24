@@ -48,9 +48,19 @@
     <string name="gyro_on">Gyro ✓</string>
     <string name="gyro_off">Gyro</string>
 
+    <!-- NDS pad -->
+    <string name="layout_nds">NDS (touch + pad)</string>
+    <string name="pen_on">Pen ✓</string>
+    <string name="pen_off">Pen</string>
+
     <!-- Ergonomics + settings -->
     <string name="dim">Dim</string>
     <string name="immersive">Full-scr</string>
+    <string name="focus">Focus</string>
+    <string name="focus_exit_chip">⛶</string>
+    <string name="focus_blocked_editing">Save or leave the editor first — then Focus.</string>
+    <string name="app_background">App background…</string>
+    <string name="bt_off_hint">Bluetooth is off — turn it on, then tap Re-probe.</string>
     <string name="settings_title">Settings</string>
     <string name="settings_haptics">Vibrate on press</string>
     <string name="settings_deadzone">Stick deadzone</string>

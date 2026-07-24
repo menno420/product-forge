@@ -1,16 +1,22 @@
 /*
- * ButtonStyler — the visual layer for custom-layout buttons (Slice 7).
+ * ButtonStyler — the visual layer for buttons (Slice 7, extended in Slice 8).
  *
- * Renders a PadButtonSpec's color/shape/text choices onto a plain Button:
- * programmatic GradientDrawable backgrounds (no XML resources), a darkened
- * pressed state via StateListDrawable so colored buttons still visibly react,
- * and automatic black/white text by background luminance. A null color keeps the
- * platform-default button look untouched.
+ * Slice 7: renders a PadButtonSpec's color/shape/text choices onto a plain Button —
+ * programmatic GradientDrawable backgrounds (no XML resources), a pressed-state
+ * variant via StateListDrawable, automatic black/white text by background luminance.
+ *
+ * Slice 8 (dark controller theme): every button is flat-styled — a null spec color
+ * now means the shared dark SURFACE, not the platform widget look, so built-in pads
+ * and custom layouts share one visual language. Pressed states LIGHTEN dark bases
+ * and DARKEN bright ones (both directions stay visible). Built-in pad buttons get
+ * an inset so touching grid cells keep gutters; labels auto-size so long text
+ * (SELECT) shrinks instead of wrapping.
  */
 package com.productforge.phonecontroller.ui
 
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.InsetDrawable
 import android.graphics.drawable.StateListDrawable
 import android.util.TypedValue
 import android.widget.Button
@@ -18,6 +24,12 @@ import com.productforge.phonecontroller.layout.PadButtonSpec
 import com.productforge.phonecontroller.layout.PadShape
 
 object ButtonStyler {
+
+    /** App-wide default background (dark slate); the user override lives in prefs. */
+    val DEFAULT_APP_BG = 0xFF15181E.toInt()
+
+    /** The shared dark button surface ("default" button color in the dark theme). */
+    val SURFACE = 0xFF2A313B.toInt()
 
     /** Swatch palette (label → opaque ARGB). "Default" is represented by null upstream. */
     val PALETTE: List<Pair<String, Int>> = listOf(
@@ -46,16 +58,21 @@ object ButtonStyler {
         "Ghost" to 0x66,
     )
 
-    /** Pad-background presets for a whole layout (label → ARGB; null = default). */
+    /** Background presets for layouts AND the whole app (label → ARGB; null = default). */
     val PAD_BACKGROUNDS: List<Pair<String, Int?>> = listOf(
         "Default" to null,
         "Black (OLED)" to 0xFF000000.toInt(),
         "Dark grey" to 0xFF121212.toInt(),
         "Deep blue" to 0xFF0D1B2A.toInt(),
         "Deep green" to 0xFF0B1F16.toInt(),
+        "Deep purple" to 0xFF190F2E.toInt(),
+        "Charcoal" to 0xFF262B31.toInt(),
     )
 
     fun withAlpha(color: Int, alpha: Int): Int = (color and 0x00FFFFFF) or (alpha shl 24)
+
+    private fun luminance(color: Int): Float =
+        0.299f * Color.red(color) + 0.587f * Color.green(color) + 0.114f * Color.blue(color)
 
     private fun darken(color: Int): Int {
         val a = Color.alpha(color)
@@ -65,13 +82,19 @@ object ButtonStyler {
         return Color.argb(a, r, g, b)
     }
 
-    /** Black or white text, by the background's relative luminance (alpha-blind). */
-    private fun textColorFor(background: Int): Int {
-        val lum = 0.299f * Color.red(background) +
-            0.587f * Color.green(background) +
-            0.114f * Color.blue(background)
-        return if (lum > 150f) 0xFF1A1A1A.toInt() else 0xFFFFFFFF.toInt()
+    private fun lighten(color: Int): Int {
+        val a = Color.alpha(color)
+        fun ch(c: Int): Int = (c + (255 - c) * 0.30f).toInt().coerceAtMost(255)
+        return Color.argb(a, ch(Color.red(color)), ch(Color.green(color)), ch(Color.blue(color)))
     }
+
+    /** The pressed variant must stay visible in BOTH directions: lighten dark bases. */
+    private fun pressedVariant(color: Int): Int =
+        if (luminance(color) < 70f) lighten(color) else darken(color)
+
+    /** Black or white text, by the background's relative luminance (alpha-blind). */
+    private fun textColorFor(background: Int): Int =
+        if (luminance(background) > 150f) 0xFF1A1A1A.toInt() else 0xFFECEFF1.toInt()
 
     private fun shapeDrawable(spec: PadButtonSpec, color: Int, heightPx: Int): GradientDrawable =
         GradientDrawable().apply {
@@ -96,18 +119,47 @@ object ButtonStyler {
         }
 
     /**
-     * Apply the spec's visual choices. [heightPx] shapes the corner radii — pass the
-     * button's laid-out height (0 falls back to a sane radius).
+     * Apply a custom-layout spec's visual choices. [heightPx] shapes the corner radii —
+     * pass the button's laid-out height (0 falls back to a sane radius). A null spec
+     * color renders the shared dark SURFACE so custom pads match the built-in look.
      */
     fun apply(button: Button, spec: PadButtonSpec, heightPx: Int) {
-        button.setTextSize(TypedValue.COMPLEX_UNIT_SP, spec.textSizeSp.toFloat())
-        val color = spec.colorArgb ?: return // default platform look
+        button.maxLines = 2
+        button.setAutoSizeTextTypeUniformWithConfiguration(
+            8, maxOf(9, spec.textSizeSp), 1, TypedValue.COMPLEX_UNIT_SP,
+        )
+        val color = spec.colorArgb ?: SURFACE
         val h = if (heightPx > 0) heightPx else 96
         val states = StateListDrawable().apply {
-            addState(intArrayOf(android.R.attr.state_pressed), shapeDrawable(spec, darken(color), h))
+            addState(intArrayOf(android.R.attr.state_pressed), shapeDrawable(spec, pressedVariant(color), h))
             addState(intArrayOf(), shapeDrawable(spec, color, h))
         }
         button.background = states
         button.setTextColor(textColorFor(color))
+        button.stateListAnimator = null
+    }
+
+    /**
+     * Flat dark-theme styling for built-in pad buttons and chrome chips: rounded
+     * rect + pressed variant + disabled fade, inset so adjacent grid cells keep a
+     * gutter (custom GradientDrawables have no built-in inset, unlike the platform
+     * button background).
+     */
+    fun flatStyle(button: Button, color: Int, cornerDp: Float = 10f, insetDp: Float = 3f) {
+        val density = button.resources.displayMetrics.density
+        val radius = cornerDp * density
+        fun drawableOf(c: Int) = GradientDrawable().apply {
+            setColor(c)
+            cornerRadius = radius
+        }
+        val states = StateListDrawable().apply {
+            addState(intArrayOf(android.R.attr.state_pressed), drawableOf(pressedVariant(color)))
+            addState(intArrayOf(android.R.attr.state_enabled), drawableOf(color))
+            addState(intArrayOf(), drawableOf(withAlpha(color, 0x55)))
+        }
+        val inset = (insetDp * density).toInt()
+        button.background = InsetDrawable(states, inset)
+        button.setTextColor(textColorFor(color))
+        button.stateListAnimator = null
     }
 }
