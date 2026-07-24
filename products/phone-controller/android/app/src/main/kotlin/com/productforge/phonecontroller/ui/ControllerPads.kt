@@ -66,6 +66,9 @@ interface PadHost {
 interface TouchpadConfig {
     /** Pointer-speed multiplier, 0.5..3.0. */
     var sensitivity: Float
+
+    /** Invert two-finger scroll (Slice 10 Settings toggle; default natural). */
+    val invertScroll: Boolean get() = false
 }
 
 /** Gyro control surface the Analog pad's toggle drives (owned by MainActivity). */
@@ -314,7 +317,10 @@ object ControllerPads {
                 override fun onScroll(notches: Int) = host.onMouseScroll(notches)
                 override fun onTap(button: MouseButton) = host.onMouseClick(button)
             },
-        ).apply { sensitivity = config.sensitivity }
+        ).apply {
+            sensitivity = config.sensitivity
+            invertScroll = config.invertScroll
+        }
 
         val hintView = TextView(context).apply {
             text = hint
@@ -395,6 +401,7 @@ object ControllerPads {
             },
         ).apply {
             sensitivity = config.sensitivity
+            invertScroll = config.invertScroll
             penMode = penEnabled
         }
 
@@ -570,7 +577,10 @@ object ControllerPads {
                 override fun onScroll(notches: Int) = host.onMouseScroll(notches)
                 override fun onTap(button: MouseButton) = host.onMouseClick(button)
             },
-        ).apply { sensitivity = config.sensitivity }
+        ).apply {
+            sensitivity = config.sensitivity
+            invertScroll = config.invertScroll
+        }
 
         return LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL

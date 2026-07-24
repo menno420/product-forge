@@ -37,6 +37,12 @@ enum class PadActionType {
 
     /** code = "modifierMask:usage" decimal pair (Slice 9 chords, e.g. Ctrl+C = "1:6"). */
     COMBO,
+
+    /**
+     * code = JSON step array (Slice 10 macros): [{"t":type,"c":code,"l":label,
+     * "h":holdMs,"g":gapMs}, …]. Steps may be any type except MACRO (no nesting).
+     */
+    MACRO,
 }
 
 data class PadAction(val type: PadActionType, val code: String)
@@ -125,7 +131,17 @@ data class CustomLayout(
         bgColorArgb = bgColorArgb,
     )
 
+    /**
+     * Share format (Slice 10): a versioned envelope around the layout JSON, compact
+     * enough to paste into any chat. The version marker lets future formats evolve
+     * without breaking old imports.
+     */
+    fun toShareString(): String =
+        JSONObject().put("pcl", SHARE_VERSION).put("layout", toJson()).toString()
+
     companion object {
+        const val SHARE_VERSION = 1
+
         fun fromJson(o: JSONObject): CustomLayout {
             val buttons = mutableListOf<PadButtonSpec>()
             val arr = o.getJSONArray("buttons")
@@ -137,6 +153,19 @@ data class CustomLayout(
                 bgColorArgb = if (o.has("bg")) o.getInt("bg") else null,
             )
         }
+
+        /**
+         * Parse a shared layout: the {"pcl":…} envelope OR a bare layout object
+         * (leniency for hand-trimmed pastes). Returns null on anything malformed —
+         * the importer surfaces a friendly message, never a crash. [newId] replaces
+         * the embedded id so imports can't collide with existing layouts.
+         */
+        fun fromShareString(raw: String, newId: String): CustomLayout? = runCatching {
+            val o = JSONObject(raw.trim())
+            val layoutObj = if (o.has("pcl")) o.getJSONObject("layout") else o
+            val parsed = fromJson(layoutObj)
+            CustomLayout(newId, parsed.name, parsed.buttons, parsed.bgColorArgb)
+        }.getOrNull()
 
         /** A starter template (GBA-ish core) the editor seeds new layouts from. */
         fun template(id: String, name: String): CustomLayout = CustomLayout(

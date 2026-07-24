@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 10: layout sharing, volume-key triggers, macros, turbo rate, scroll invert (builder lane)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: fable-5 · high · feature build
 
@@ -62,4 +62,19 @@ via the saved local pipeline; bootstrap gate green; CI green on PR; merge → ta
 
 ## Result
 
-_(fill on completion)_
+Shipped, all five blocks (A–E). Local verify green: 45/45 JVM tests (hid-core
+untouched), app compiles vs android.jar (61 classes). Session survived a usage-
+limit pause mid-slice — all edits were already on disk in the workspace clone
+(born-red card committed first, per convention: nothing was lost).
+
+Guard recipes: MacroRunner releases the in-flight step on cancel and is cancelled
+on pad switch / disconnect / destroy (same contract as TextTyper/turbo); macro
+steps are fail-soft parsed, capped at 64, and MACRO-in-MACRO is filtered at BOTH
+the parser and the resolver; volume-key interception only while mapped AND
+connected AND not editing (repeatCount>0 ignored), everything else passes to the
+system; AlertDialog setMessage+setItems conflict avoided (summary rides as a list
+row); layoutOptions rebuilt as label→handler pairs (drift-proof, same as
+buttonConfigDialog); share import assigns a fresh id and suffixes colliding names.
+
+v0.10.0 (versionCode 8) — first release born under stable signing (installs over
+v0.9.0 in place). PR/tag/release: control/status.md heartbeat.

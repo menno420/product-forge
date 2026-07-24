@@ -18,7 +18,7 @@ target. Based on the Ideas-Lab plan
 
 ## State
 
-**beta · field-verified against a real host.** Slices 1–9 are built and CI-proven: the
+**beta · field-verified against a real host.** Slices 1–10 are built and CI-proven: the
 capability verdict engine (portable Python + lockstep Kotlin port), the real
 `BluetoothHidDevice` transport, a **combo HID device** (keyboard + gamepad + mouse +
 media remote), the controller UI (ten built-in layouts + a full custom-layout
@@ -63,10 +63,14 @@ browser/files app when prompted (normal sideload flow — this app is not on a s
      that maps phone tilt onto the right stick (aiming / steering).
    - **Your own layouts** — Settings → *Layouts…* → New: drag buttons anywhere;
      size presets + fine width/height steppers; assign any action (gamepad / D-pad /
-     keys / modifiers / media / mouse); per-button **color** (16-swatch palette,
-     auto-contrast text), **shape** (rounded / circle / pill / square), **opacity**,
-     **text size**, **turbo ⚡** (10 Hz); duplicate buttons or whole layouts; pick a
-     pad **background** (incl. OLED black). Custom layouts join this spinner.
+     keys / modifiers / media / mouse / key combos / **macros** — timed multi-step
+     sequences with pauses, built right in the editor); per-button **color**
+     (16-swatch palette, auto-contrast text), **shape** (rounded / circle / pill /
+     square), **opacity**, **text size**, **turbo ⚡** (rate settable 5–20/s);
+     duplicate buttons or whole layouts; pick a pad **background** (incl. OLED
+     black). Custom layouts join this spinner — and can be **shared as text**
+     (Layouts → your layout → Share…) and imported by anyone via Layouts →
+     *Import layout…* (paste). Great for posting layouts to Discord/Reddit.
    - **Touchpad** — drag to move the host's pointer (on an Android target a system
      cursor appears), tap = click, two-finger tap = right-click, two-finger drag =
      scroll (natural direction), hold LEFT + drag = drag-select; speed slider below.
@@ -101,6 +105,11 @@ browser/files app when prompted (normal sideload flow — this app is not on a s
    search boxes and passwords). The **Connect…** dialog doubles as a host
    switcher: picking another paired device hops the connection (and its remembered
    layout) over cleanly.
+
+   In Settings you can also map the **hardware volume buttons** to inputs
+   (L1/R1, L2/R2, or PgUp/PgDn — real physical shoulder buttons in landscape;
+   volume behaves normally when disconnected), set the **turbo rate**, and
+   **invert touchpad scrolling**.
 
    **Fairness promise:** the app is complete for free — every key, pad and editor
    feature, no ads, no subscriptions. A one-time ~€1 supporter pack (cosmetic
