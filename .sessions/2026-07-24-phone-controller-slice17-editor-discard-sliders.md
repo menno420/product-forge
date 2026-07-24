@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 17: editor discard + customize-a-preset + fine size sliders (builder lane)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: fable-5 · high · feature build
 
@@ -50,4 +50,18 @@ stable-signed release.
 
 ## Result
 
-_(fill on completion)_
+Shipped, all three blocks. Discard: editor toolbar gains Cancel ✕ (confirm dialog,
+message differs for new vs existing); new layouts no longer pre-saved (startEditor
+isNew flag; only Save persists), so discard leaves nothing behind; discardEditor()
+returns to the remembered pre-edit selection. Fine sizing: one shared
+sizeSliderDialog(PadPositioned, ranges) with live-preview Width/Height SeekBars +
+S/M/L/XL quick buttons, used by both buttons (5-60%) and widgets (10-90%). Preset
+editing: New "Start from" now includes NDS (touch widget + D-pad widget + X/A/B/Y +
+L/R + Select/Start) alongside Blank/GBA/Full gamepad/Analog — start any controller
+preset as an editable copy.
+
+Guard: PadPositioned reused for the shared slider (buttons + widgets); clampToPad
+keeps sizes in range live; editingLayout nulled before Save's showSelection so it
+doesn't re-enter the editor on rebuild. hid-core 59/59 (unchanged); app vs
+android.jar 92 classes. v0.17.0 (versionCode 15), stable-signed, no HID descriptor
+change → installs in place, no re-pair. PR/tag/release: control/status.md heartbeat.

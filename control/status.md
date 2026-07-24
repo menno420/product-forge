@@ -1,7 +1,7 @@
 # product-forge · status
 
-updated: 2026-07-24T19:16:26Z
-phase: phone-controller Slice 17 IN PROGRESS — editor discard + customize-a-preset + fine size sliders
+updated: 2026-07-24T19:20:27Z
+phase: phone-controller Slice 17 SHIPPED — editor discard + customize-a-preset + fine size sliders (v0.17.0)
 lane: builder (phone-controller) · owner-live session 2026-07-23
 health: green
 

@@ -67,7 +67,7 @@ browser/files app when prompted (normal sideload flow — this app is not on a s
      phone when you enable gyro; **long-press the Gyro button to recenter** mid-game,
      or use the Recenter button in Settings → Gyro….
    - **Your own layouts** — Settings → *Layouts…* → New: **start from a template**
-     (Blank / GBA / Full gamepad / Analog + sticks), then drag anything anywhere.
+     (Blank / GBA / Full gamepad / Analog + sticks / NDS) — customise a preset by starting from it, then drag anything anywhere.
      Add **buttons** (any action — gamepad / D-pad / keys / modifiers / media /
      mouse / key combos / **macros**) *and* **widgets** via **+ Stick / D-pad…**:
      a **left/right analog stick**, an **8-way D-pad** (with diagonals — press

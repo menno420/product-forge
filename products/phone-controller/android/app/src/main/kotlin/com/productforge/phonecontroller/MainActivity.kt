@@ -63,6 +63,7 @@ import com.productforge.phonecontroller.layout.PadAction
 import com.productforge.phonecontroller.layout.PadActionType
 import com.productforge.phonecontroller.layout.PadButtonSpec
 import com.productforge.phonecontroller.layout.PadFx
+import com.productforge.phonecontroller.layout.PadPositioned
 import com.productforge.phonecontroller.layout.PadShape
 import com.productforge.phonecontroller.layout.PadWidgetSpec
 import com.productforge.phonecontroller.layout.PadWidgetType
@@ -111,6 +112,8 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
     private var autoConnectAttempted = false
     private var editingLayout: CustomLayout? = null
     private var editingView: CustomPadView? = null
+    private var editingIsNew = false
+    private var preEditSelection: String = "b:0"
 
     /** Chrome hidden by focus mode (status/detail/action rows or the side panel). */
     private val chromeViews = mutableListOf<View>()
@@ -863,7 +866,12 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             .show()
     }
 
-    /** New-layout flow (Slice 15): pick a starter template, then name it, then edit. */
+    /**
+     * New-layout / customize-a-preset flow (Slice 15; Slice 17). Pick a starter —
+     * Blank or a controller preset (GBA / Full gamepad / Analog / NDS) — name it, then
+     * edit. The layout is NOT saved here; only the editor's Save persists it, so
+     * backing out (Cancel) leaves nothing behind.
+     */
     private fun newLayoutFlow() {
         val kinds = CustomLayout.templateKinds()
         AlertDialog.Builder(this)
@@ -875,8 +883,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                         name.ifBlank { getString(R.string.new_layout) },
                         kinds[which],
                     )
-                    layoutStore.save(layout)
-                    startEditor(layout)
+                    startEditor(layout, isNew = true)
                 }
             }
             .show()
@@ -923,19 +930,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                     .show()
             },
             getString(R.string.editor_size) to {
-                val sizes = listOf(
-                    "S" to (0.18f to 0.26f), "M" to (0.28f to 0.40f),
-                    "L" to (0.40f to 0.55f), "XL" to (0.52f to 0.7f),
-                )
-                AlertDialog.Builder(this)
-                    .setTitle(R.string.editor_size)
-                    .setItems(sizes.map { it.first }.toTypedArray()) { _, s ->
-                        spec.wPct = sizes[s].second.first
-                        spec.hPct = sizes[s].second.second
-                        spec.clampToPad()
-                        editingView?.rebuild()
-                    }
-                    .show()
+                sizeSliderDialog(spec, 0.10f, 0.90f, 0.10f, 0.90f)
             },
             getString(R.string.editor_delete) to {
                 layout.widgets.remove(spec)
@@ -948,10 +943,13 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             .show()
     }
 
-    private fun startEditor(layout: CustomLayout) {
+    private fun startEditor(layout: CustomLayout, isNew: Boolean = false) {
         turbo.cancelAll()
         stopGyro()
         transport?.releaseHeldInputs()
+        // Remember where to return on discard; a new layout isn't in the store yet.
+        if (editingLayout == null) preEditSelection = currentSelection
+        editingIsNew = isNew
         editingLayout = layout
 
         padContainer.removeAllViews()
@@ -982,9 +980,18 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                     setDetail(getString(R.string.editor_hint))
                 },
                 getString(R.string.editor_save) to {
+                    editingLayout = null
                     layoutStore.save(layout)
                     showSelection("c:${layout.id}")
                     rebuildSpinnerSelection()
+                },
+                getString(R.string.editor_cancel) to {
+                    AlertDialog.Builder(this@MainActivity)
+                        .setTitle(R.string.editor_discard_title)
+                        .setMessage(if (editingIsNew) R.string.editor_discard_new else R.string.editor_discard_edit)
+                        .setPositiveButton(R.string.editor_discard_yes) { _, _ -> discardEditor() }
+                        .setNegativeButton(R.string.editor_keep_editing, null)
+                        .show()
                 },
             ).forEach { (label, onClick) ->
                 addView(
@@ -1009,6 +1016,19 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             editorRoot,
             FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT),
         )
+    }
+
+    /**
+     * Leave the editor WITHOUT saving. A new layout was never persisted (only Save
+     * writes it), and edits to an existing layout were made on a throwaway parsed
+     * copy, so returning to the stored version simply reloads the original.
+     */
+    private fun discardEditor() {
+        editingLayout = null
+        editingView = null
+        val back = if (selectionExists(preEditSelection)) preEditSelection else "b:0"
+        showSelection(back)
+        rebuildSpinnerSelection()
     }
 
     private fun buttonConfigDialog(layout: CustomLayout, spec: PadButtonSpec) {
@@ -1074,33 +1094,71 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
     }
 
     /** S–XL presets + 2% width/height steppers (fine control past the presets). */
-    private fun pickSize(spec: PadButtonSpec) {
-        val presets = arrayOf(
-            "S" to (0.10f to 0.14f),
-            "M" to (0.14f to 0.18f),
-            "L" to (0.18f to 0.24f),
-            "XL" to (0.24f to 0.30f),
-        )
-        val items = presets.map { it.first } + listOf(
-            getString(R.string.size_wider), getString(R.string.size_narrower),
-            getString(R.string.size_taller), getString(R.string.size_shorter),
-        )
+    private fun pickSize(spec: PadButtonSpec) =
+        sizeSliderDialog(spec, 0.05f, 0.60f, 0.06f, 0.60f)
+
+    /**
+     * Fine size control (Slice 17): Width + Height sliders with LIVE preview (the
+     * button/widget resizes behind the dialog as you drag), plus S–XL quick presets.
+     * Works on any [PadPositioned] so buttons and widgets share it.
+     */
+    private fun sizeSliderDialog(spec: PadPositioned, wMin: Float, wMax: Float, hMin: Float, hMax: Float) {
+        val pad = dp(16)
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, 0)
+        }
+
+        fun pct(v: Float) = "${(v * 100).toInt()}%"
+        val wLabel = TextView(this).apply { textSize = 13f }
+        val hLabel = TextView(this).apply { textSize = 13f; setPadding(0, dp(10), 0, 0) }
+        val wBar = SeekBar(this).apply { max = 100 }
+        val hBar = SeekBar(this).apply { max = 100 }
+
+        fun refreshLabels() {
+            wLabel.text = getString(R.string.size_width_fmt, pct(spec.wPct))
+            hLabel.text = getString(R.string.size_height_fmt, pct(spec.hPct))
+        }
+        fun setW(p: Int) { spec.wPct = wMin + p / 100f * (wMax - wMin); spec.clampToPad(); refreshLabels(); editingView?.rebuild() }
+        fun setH(p: Int) { spec.hPct = hMin + p / 100f * (hMax - hMin); spec.clampToPad(); refreshLabels(); editingView?.rebuild() }
+
+        wBar.progress = (((spec.wPct - wMin) / (wMax - wMin)) * 100).toInt().coerceIn(0, 100)
+        hBar.progress = (((spec.hPct - hMin) / (hMax - hMin)) * 100).toInt().coerceIn(0, 100)
+        refreshLabels()
+        wBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, p: Int, u: Boolean) { setW(p) }
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
+        })
+        hBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, p: Int, u: Boolean) { setH(p) }
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
+        })
+
+        // Quick presets set both bars (fractions of each range).
+        val quick = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(4), 0, 0) }
+        listOf("S" to 0.2f, "M" to 0.45f, "L" to 0.7f, "XL" to 0.95f).forEach { (label, frac) ->
+            quick.addView(
+                Button(this).apply {
+                    text = label; isAllCaps = false; textSize = 13f
+                    ButtonStyler.flatStyle(this, ButtonStyler.SURFACE, cornerDp = 14f)
+                    setOnClickListener {
+                        wBar.progress = (frac * 100).toInt()
+                        hBar.progress = (frac * 100).toInt()
+                    }
+                },
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
+            )
+        }
+
+        content.addView(wLabel); content.addView(wBar)
+        content.addView(hLabel); content.addView(hBar)
+        content.addView(quick)
         AlertDialog.Builder(this)
             .setTitle(R.string.editor_size)
-            .setItems(items.toTypedArray()) { _, which ->
-                when {
-                    which < presets.size -> {
-                        spec.wPct = presets[which].second.first
-                        spec.hPct = presets[which].second.second
-                    }
-                    which == presets.size -> spec.wPct += 0.02f
-                    which == presets.size + 1 -> spec.wPct -= 0.02f
-                    which == presets.size + 2 -> spec.hPct += 0.02f
-                    else -> spec.hPct -= 0.02f
-                }
-                spec.clampToPad()
-                editingView?.rebuild()
-            }
+            .setView(ScrollView(this).apply { addView(content) })
+            .setPositiveButton(android.R.string.ok, null)
             .show()
     }
 

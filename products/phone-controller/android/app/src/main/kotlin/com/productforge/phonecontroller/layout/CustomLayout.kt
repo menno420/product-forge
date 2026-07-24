@@ -241,11 +241,29 @@ data class CustomLayout(
         private fun gp(x: Float, y: Float, w: Float, h: Float, label: String, code: String) =
             PadButtonSpec(x, y, w, h, label, PadAction(PadActionType.GAMEPAD, code))
 
-        /** Starter templates offered when creating a new layout (Slice 15). */
-        fun templateKinds(): List<String> = listOf("Blank", "GBA", "Full gamepad", "Analog + sticks")
+        /** Starter templates offered when creating a new layout (Slice 15/17). */
+        fun templateKinds(): List<String> =
+            listOf("Blank", "GBA", "Full gamepad", "Analog + sticks", "NDS (touch + pad)")
 
         fun template(id: String, name: String, kind: String = "GBA"): CustomLayout = when (kind) {
             "Blank" -> CustomLayout(id, name, mutableListOf())
+            "NDS (touch + pad)" -> CustomLayout(
+                id, name,
+                mutableListOf(
+                    gp(0.02f, 0.42f, 0.15f, 0.10f, "L", "L1"),
+                    gp(0.34f, 0.42f, 0.14f, 0.10f, "SELECT", "SELECT"),
+                    gp(0.52f, 0.42f, 0.14f, 0.10f, "START", "START"),
+                    gp(0.83f, 0.42f, 0.15f, 0.10f, "R", "R1"),
+                    gp(0.80f, 0.56f, 0.10f, 0.13f, "X", "X"),
+                    gp(0.68f, 0.69f, 0.10f, 0.13f, "Y", "Y"),
+                    gp(0.90f, 0.69f, 0.10f, 0.13f, "A", "A"),
+                    gp(0.80f, 0.82f, 0.10f, 0.13f, "B", "B"),
+                ),
+                widgets = mutableListOf(
+                    PadWidgetSpec(PadWidgetType.TOUCHPAD, 0.10f, 0.02f, 0.80f, 0.36f),
+                    PadWidgetSpec(PadWidgetType.DPAD, 0.02f, 0.56f, 0.30f, 0.40f),
+                ),
+            )
             "Full gamepad" -> CustomLayout(
                 id, name,
                 mutableListOf(
