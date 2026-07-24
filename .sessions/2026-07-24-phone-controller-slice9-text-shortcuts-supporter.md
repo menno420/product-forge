@@ -86,4 +86,14 @@ Fair-IAP posture encoded in code comments (Supporter.kt: "NEVER gate an input")
 and user-visible copy (fairness promise in About + README). SUPPORT_URL points at
 the repo until the owner creates a Ko-fi/Sponsors page (flagged owner-side).
 
-v0.9.0 (versionCode 7). PR/tag/release: control/status.md heartbeat.
+v0.9.0 (versionCode 7). PR #39 squash-merged on green (`179450f`); tag + release
+live with APK + sha256.
+
+**Addendum — OA-005 closed same session (owner: "if you have more steps please
+continue"):** stable-signing secrets `PC_RELEASE_KEYSTORE_B64` /
+`PC_RELEASE_KEYSTORE_PASSWORD` created via direct-egress REST (libsodium sealed
+box, PyNaCl; Slice-4 keystore, alias `phone-controller`, verified with keytool
+first). v0.9.0 re-signed via workflow_dispatch (the tag run had raced the
+secrets by ~4 min and came out ephemeral). In-place updates hold from v0.9.0
+onward. Capability note: Actions-secret creation over the PAT path re-verified —
+GET public-key → sealed-box → PUT secret, HTTP 201 both.

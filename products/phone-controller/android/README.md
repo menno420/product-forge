@@ -103,6 +103,12 @@ secrets `PC_RELEASE_KEYSTORE_B64` / `PC_RELEASE_KEYSTORE_PASSWORD` (stable signa
 `phone-controller-<version>.apk` + sha256 to the GitHub Release for the
 `phone-controller-v*` tag.
 
+**The stable-signing secrets are SET (2026-07-24, OA-005 closed):** every release
+from the re-signed v0.9.0 onward carries the same signature, so updates install
+in place — no uninstall between versions. (Releases v0.4.0–v0.8.0 predate the
+secrets and were ephemeral-signed; updating FROM one of those still needs a
+one-time uninstall.) The keystore lives only in the repo secret.
+
 ## Decide-and-flag choices
 
 - **Combo descriptor over media-only** *(Slice 4)* — keyboard + gamepad are what the
