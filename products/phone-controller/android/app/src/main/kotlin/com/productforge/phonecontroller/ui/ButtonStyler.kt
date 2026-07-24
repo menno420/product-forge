@@ -21,6 +21,7 @@ import android.graphics.drawable.StateListDrawable
 import android.util.TypedValue
 import android.widget.Button
 import com.productforge.phonecontroller.layout.PadButtonSpec
+import com.productforge.phonecontroller.layout.PadFx
 import com.productforge.phonecontroller.layout.PadShape
 
 object ButtonStyler {
@@ -96,32 +97,46 @@ object ButtonStyler {
     private fun textColorFor(background: Int): Int =
         if (luminance(background) > 150f) 0xFF1A1A1A.toInt() else 0xFFECEFF1.toInt()
 
+    /** Configure shape/corners on a GradientDrawable per the spec (shared helper). */
+    private fun applyShapeGeometry(gd: GradientDrawable, spec: PadButtonSpec, heightPx: Int) {
+        when (spec.shape) {
+            PadShape.CIRCLE -> {
+                gd.shape = GradientDrawable.OVAL
+            }
+            PadShape.PILL -> {
+                gd.shape = GradientDrawable.RECTANGLE
+                gd.cornerRadius = heightPx / 2f
+            }
+            PadShape.ROUNDED -> {
+                gd.shape = GradientDrawable.RECTANGLE
+                gd.cornerRadius = heightPx * 0.18f
+            }
+            PadShape.SQUARE -> {
+                gd.shape = GradientDrawable.RECTANGLE
+                gd.cornerRadius = 0f
+            }
+        }
+    }
+
     private fun shapeDrawable(spec: PadButtonSpec, color: Int, heightPx: Int): GradientDrawable =
         GradientDrawable().apply {
             setColor(color)
-            when (spec.shape) {
-                PadShape.CIRCLE -> {
-                    shape = GradientDrawable.OVAL
-                }
-                PadShape.PILL -> {
-                    shape = GradientDrawable.RECTANGLE
-                    cornerRadius = heightPx / 2f
-                }
-                PadShape.ROUNDED -> {
-                    shape = GradientDrawable.RECTANGLE
-                    cornerRadius = heightPx * 0.18f
-                }
-                PadShape.SQUARE -> {
-                    shape = GradientDrawable.RECTANGLE
-                    cornerRadius = 0f
-                }
-            }
+            applyShapeGeometry(this, spec, heightPx)
         }
+
+    /** Supporter style pack: vertical light→dark gradient of the chosen color. */
+    private fun gradientDrawable(spec: PadButtonSpec, color: Int, heightPx: Int): GradientDrawable =
+        GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(lighten(color), color, darken(color)),
+        ).apply { applyShapeGeometry(this, spec, heightPx) }
 
     /**
      * Apply a custom-layout spec's visual choices. [heightPx] shapes the corner radii —
      * pass the button's laid-out height (0 falls back to a sane radius). A null spec
      * color renders the shared dark SURFACE so custom pads match the built-in look.
+     * Style-pack fills (GRADIENT/GLOW) render only while [Supporter.unlocked]; locked
+     * specs fall back to FLAT — visibly complete, never broken.
      */
     fun apply(button: Button, spec: PadButtonSpec, heightPx: Int) {
         button.maxLines = 2
@@ -130,9 +145,25 @@ object ButtonStyler {
         )
         val color = spec.colorArgb ?: SURFACE
         val h = if (heightPx > 0) heightPx else 96
+        val fx = if (Supporter.unlocked) spec.fx else PadFx.FLAT
+        val strokePx = (2f * button.resources.displayMetrics.density).toInt()
+        val normal = when (fx) {
+            PadFx.GRADIENT -> gradientDrawable(spec, color, h)
+            PadFx.GLOW -> shapeDrawable(spec, color, h).apply {
+                setStroke(strokePx, withAlpha(lighten(color), 0xB3))
+            }
+            PadFx.FLAT -> shapeDrawable(spec, color, h)
+        }
+        val pressed = when (fx) {
+            PadFx.GRADIENT -> gradientDrawable(spec, pressedVariant(color), h)
+            PadFx.GLOW -> shapeDrawable(spec, lighten(color), h).apply {
+                setStroke(strokePx * 2, 0xE6FFFFFF.toInt())
+            }
+            PadFx.FLAT -> shapeDrawable(spec, pressedVariant(color), h)
+        }
         val states = StateListDrawable().apply {
-            addState(intArrayOf(android.R.attr.state_pressed), shapeDrawable(spec, pressedVariant(color), h))
-            addState(intArrayOf(), shapeDrawable(spec, color, h))
+            addState(intArrayOf(android.R.attr.state_pressed), pressed)
+            addState(intArrayOf(), normal)
         }
         button.background = states
         button.setTextColor(textColorFor(color))

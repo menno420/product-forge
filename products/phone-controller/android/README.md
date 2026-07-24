@@ -27,7 +27,7 @@ android/
     src/main/AndroidManifest.xml                    # configChanges: rotation keeps the connection
     src/main/res/values/strings.xml
     src/main/kotlin/.../MainActivity.kt             # permissions + status + layout picker (portrait/landscape)
-    src/main/kotlin/.../ui/ControllerPads.kt        # eight layouts + SlidePadRouter (glide between buttons)
+    src/main/kotlin/.../ui/ControllerPads.kt        # ten layouts + SlidePadRouter (glide between buttons)
     src/main/kotlin/.../ui/TouchpadView.kt          # mouse surface (drag/tap/two-finger gestures)
     src/main/kotlin/.../transport/BluetoothHidDeviceTransport.kt  # the real transport
 ```

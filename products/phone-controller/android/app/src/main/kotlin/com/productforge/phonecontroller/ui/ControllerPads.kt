@@ -503,6 +503,112 @@ object ControllerPads {
         return b.slidePadRoot(root)
     }
 
+    // ---- presenter (Slice 9: slide keys + chords + on-phone timer + pointer strip) ------
+
+    /**
+     * Presentation clicker: big Prev/Next (PageUp/PageDown — what PowerPoint, Impress
+     * and Google Slides all accept), Start (F5) / From-here (Shift+F5) / End (Esc) /
+     * Blank (B), an elapsed-time Chronometer (tap = start/pause, long-press = reset)
+     * and a touchpad strip for waving the host pointer at the slide.
+     */
+    fun buildPresenterPad(context: Context, host: PadHost, config: TouchpadConfig): View {
+        val b = Builder(context)
+        fun chord(mask: Int, usage: Int): (Boolean) -> Unit = { d ->
+            if (d) {
+                host.onModifier(mask, true)
+                host.onKey(usage, true)
+            } else {
+                host.onKey(usage, false)
+                host.onModifier(mask, false)
+            }
+        }
+
+        val mainRow = b.row(
+            2.2f,
+            b.hold("◀ Prev") { d -> host.onKey(KeyUsage.PAGE_UP, d) },
+            b.hold("Next ▶") { d -> host.onKey(KeyUsage.PAGE_DOWN, d) },
+        )
+        val controlRow = b.row(
+            1f,
+            b.hold("Start") { d -> host.onKey(KeyUsage.F1 + 4, d) }, // F5
+            b.hold("Here", onChange = chord(KeyUsage.MOD_LEFT_SHIFT, KeyUsage.F1 + 4)),
+            b.hold("End") { d -> host.onKey(KeyUsage.ESCAPE, d) },
+            b.hold("Blank") { d -> host.onKey(KeyUsage.letterUsage('b'), d) },
+        )
+
+        // Elapsed-talk timer, entirely on-phone (no HID traffic): tap toggles,
+        // long-press resets. Pause is modeled by remembering elapsed at stop.
+        val timer = android.widget.Chronometer(context).apply {
+            textSize = 30f
+            gravity = Gravity.CENTER
+            var running = false
+            var elapsedAtPause = 0L
+            setOnClickListener {
+                Haptics.tick(it)
+                if (running) {
+                    elapsedAtPause = android.os.SystemClock.elapsedRealtime() - base
+                    stop()
+                } else {
+                    base = android.os.SystemClock.elapsedRealtime() - elapsedAtPause
+                    start()
+                }
+                running = !running
+            }
+            setOnLongClickListener {
+                running = false
+                elapsedAtPause = 0L
+                stop()
+                base = android.os.SystemClock.elapsedRealtime()
+                true
+            }
+        }
+
+        val pointer = TouchpadView(
+            context,
+            object : TouchpadView.Listener {
+                override fun onMove(dx: Int, dy: Int) = host.onMouseMove(dx, dy)
+                override fun onScroll(notches: Int) = host.onMouseScroll(notches)
+                override fun onTap(button: MouseButton) = host.onMouseClick(button)
+            },
+        ).apply { sensitivity = config.sensitivity }
+
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(mainRow)
+            addView(controlRow)
+            addView(
+                timer,
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT),
+            )
+            addView(pointer, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1.7f))
+        }
+    }
+
+    // ---- shortcuts deck (Slice 9: serverless macro pad) ---------------------------------
+
+    /**
+     * A 4×4 grid of the everyday chords ([Combos.PRESETS]) — hold-capable so Alt+Tab
+     * keeps the switcher open while held. No host software: the deck IS a keyboard.
+     */
+    fun buildShortcutsPad(context: Context, host: PadHost): View {
+        val b = Builder(context)
+        fun chordButton(chord: Combos.Chord): Button = b.hold(chord.label) { d ->
+            if (d) {
+                if (chord.mask != 0) host.onModifier(chord.mask, true)
+                host.onKey(chord.usage, true)
+            } else {
+                host.onKey(chord.usage, false)
+                if (chord.mask != 0) host.onModifier(chord.mask, false)
+            }
+        }
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            Combos.PRESETS.take(16).chunked(4).forEach { rowChords ->
+                addView(b.row(1f, *rowChords.map { chordButton(it) }.toTypedArray()))
+            }
+        }
+    }
+
     // ---- media (tap semantics, unchanged) ----------------------------------------------
 
     fun buildMediaPad(context: Context, host: PadHost): View {

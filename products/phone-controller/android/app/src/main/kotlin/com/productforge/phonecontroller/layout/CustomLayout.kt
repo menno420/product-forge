@@ -34,12 +34,18 @@ enum class PadActionType {
 
     /** code = MouseButton name. */
     MOUSE,
+
+    /** code = "modifierMask:usage" decimal pair (Slice 9 chords, e.g. Ctrl+C = "1:6"). */
+    COMBO,
 }
 
 data class PadAction(val type: PadActionType, val code: String)
 
 /** Button shapes the styler can render (stored by name; default ROUNDED). */
 enum class PadShape { ROUNDED, CIRCLE, PILL, SQUARE }
+
+/** Supporter style-pack fills (Slice 9): flat is free; the rest are the €1 treats. */
+enum class PadFx { FLAT, GRADIENT, GLOW }
 
 data class PadButtonSpec(
     var xPct: Float,
@@ -53,6 +59,7 @@ data class PadButtonSpec(
     var colorArgb: Int? = null,
     var shape: PadShape = PadShape.ROUNDED,
     var textSizeSp: Int = 14,
+    var fx: PadFx = PadFx.FLAT,
 ) {
     fun clampToPad() {
         wPct = wPct.coerceIn(0.05f, 0.6f)
@@ -73,6 +80,7 @@ data class PadButtonSpec(
         .put("turbo", turbo)
         .put("shape", shape.name)
         .put("textSp", textSizeSp)
+        .also { o -> if (fx != PadFx.FLAT) o.put("fx", fx.name) }
         .also { o -> colorArgb?.let { o.put("color", it) } }
 
     companion object {
@@ -90,6 +98,8 @@ data class PadButtonSpec(
             shape = runCatching { PadShape.valueOf(o.optString("shape", "ROUNDED")) }
                 .getOrDefault(PadShape.ROUNDED),
             textSizeSp = o.optInt("textSp", 14),
+            fx = runCatching { PadFx.valueOf(o.optString("fx", "FLAT")) }
+                .getOrDefault(PadFx.FLAT),
         ).also { it.clampToPad() }
     }
 }

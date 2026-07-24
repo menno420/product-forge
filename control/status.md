@@ -1,11 +1,23 @@
 # product-forge · status
 
-updated: 2026-07-24T08:22:02Z
-phase: phone-controller Slice 8 SHIPPED — dark controller theme, focus mode, app background, NDS touch+pad, swatch picker (v0.8.0)
+updated: 2026-07-24T08:59:10Z
+phase: phone-controller Slice 9 SHIPPED — send-text+voice, combo shortcuts deck, presenter pad, host switch, supporter groundwork (v0.9.0)
 lane: builder (phone-controller) · owner-live session 2026-07-23
 health: green
 
 ## This session (2026-07-23, owner-live directive)
+**Slice 9 SHIPPED (2026-07-24):** owner-approved brainstorm + fair-IAP groundwork —
+send-text dialog (phone IME incl. voice dictation → HID keystrokes; new KeyChars
+map in hid-core, full printable-ASCII, tested), COMBO action type ("mask:usage") +
+editor presets/custom builder + Shortcuts deck pad (serverless macro pad),
+Presenter pad (PgUp/PgDn, F5/Shift+F5/Esc/B, elapsed-talk timer, pointer strip),
+connectTo now disconnect-first (Connect… = clean host switcher), Supporter
+scaffolding (gradient/glow style pack behind honest free preview toggle, fairness
+promise in About + README, SUPPORT_URL placeholder → owner to create Ko-fi/
+Sponsors). No descriptor change → no re-pair. v0.9.0 (versionCode 7). Verified
+pre-push: 45/45 JVM tests, app compiles vs android.jar (56 classes). Card:
+`.sessions/2026-07-24-phone-controller-slice9-text-shortcuts-supporter.md`.
+
 **Slice 8 SHIPPED (2026-07-24):** owner screen-recording feedback on v0.7.0 —
 dark controller theme (NoActionBar, chip styling, autosize labels — SELECT never
 wraps), pure-controller focus mode (hide all chrome, translucent ⛶ exit chip,

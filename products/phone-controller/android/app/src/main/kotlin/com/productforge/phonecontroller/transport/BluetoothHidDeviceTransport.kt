@@ -180,6 +180,14 @@ class BluetoothHidDeviceTransport(
     fun connectTo(device: BluetoothDevice): Boolean {
         val proxy = hidDevice ?: return false
         if (!registered) return false
+        // Host switching (Slice 9): the HID-device role speaks to ONE host at a time.
+        // Release anything held on the old link and drop it first, so the Connect…
+        // dialog doubles as a clean laptop↔tablet↔TV switcher.
+        val current = connectedHost
+        if (current != null && current.address != device.address) {
+            releaseHeldInputs()
+            runCatching { proxy.disconnect(current) }
+        }
         return runCatching { proxy.connect(device) }
             .getOrElse {
                 listener.onError("connect(${runCatching { device.name }.getOrNull() ?: device.address}) failed: ${it.message}")
