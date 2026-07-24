@@ -143,6 +143,17 @@
     <string name="size_narrower">Narrower −</string>
     <string name="size_taller">Taller +</string>
     <string name="size_shorter">Shorter −</string>
+    <!-- %1$s = percent, e.g. "24%". -->
+    <string name="size_width_fmt">Width: %1$s</string>
+    <string name="size_height_fmt">Height: %1$s</string>
+
+    <!-- Editor discard (Slice 17) -->
+    <string name="editor_cancel">Cancel ✕</string>
+    <string name="editor_discard_title">Discard changes?</string>
+    <string name="editor_discard_new">This new layout hasn\'t been saved. Discard it?</string>
+    <string name="editor_discard_edit">Your unsaved changes will be lost. Discard them?</string>
+    <string name="editor_discard_yes">Discard</string>
+    <string name="editor_keep_editing">Keep editing</string>
     <string name="layout_background">Background…</string>
     <string name="layout_duplicate">Duplicate</string>
     <!-- %1$s = source layout name. -->
