@@ -1,11 +1,18 @@
 # product-forge · status
 
-updated: 2026-07-24T07:47:14Z
-phase: phone-controller Slice 7 SHIPPED — visual customization (per-button colors/shapes/opacity/text-size, size steppers, duplicates, pad backgrounds, ABXY tints) (v0.7.0)
+updated: 2026-07-24T08:09:01Z
+phase: phone-controller Slice 8 IN PROGRESS — dark theme, focus mode, app background, NDS pad (owner recording feedback)
 lane: builder (phone-controller) · owner-live session 2026-07-23
 health: green
 
 ## This session (2026-07-23, owner-live directive)
+**Slice 8 in progress (2026-07-24):** owner screen-recording feedback on v0.7.0 —
+dark controller theme (NoActionBar, chip styling, autosize labels), pure-controller
+focus mode (hide all chrome), app-wide background picker, NDS pad (touch area with
+stylus pen-mode + DS button set), swatch-grid color picker, honest Bluetooth-off
+status. No descriptor change → no re-pair. Card:
+`.sessions/2026-07-24-phone-controller-slice8-dark-theme-focus-nds.md`.
+
 **Slice 7 SHIPPED (2026-07-24, same conversation):** owner visual-customization ask —
 per-button color (16 swatches, auto-contrast text, pressed-darken), shape
 (rounded/circle/pill/square), opacity presets, text size, S–XL + 2% W/H steppers,
