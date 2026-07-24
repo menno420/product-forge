@@ -18,7 +18,7 @@ target. Based on the Ideas-Lab plan
 
 ## State
 
-**beta · field-verified against a real host.** Slices 1–11 are built and CI-proven: the
+**beta · field-verified against a real host.** Slices 1–12 are built and CI-proven: the
 capability verdict engine (portable Python + lockstep Kotlin port), the real
 `BluetoothHidDevice` transport, a **combo HID device** (keyboard + gamepad + mouse +
 media remote), the controller UI (ten built-in layouts + a full custom-layout
@@ -127,6 +127,22 @@ browser/files app when prompted (normal sideload flow — this app is not on a s
 Receiver compatibility beyond Android (PCs, TVs): `./run.sh` prints the Slice-1
 sourced matrix; its first row (*Android phone/tablet: keyboard/mouse/gamepad — yes,
 out-of-box*) is exactly this use case.
+
+## Play on THIS phone (overlay mode — no second device)
+
+Beyond driving *other* devices, the app can float your controls over a game running
+on the same phone and tap the game for you — useful when a game's own on-screen
+controls are awkward. **Settings → Play on this phone…**: pick a custom layout,
+grant *draw over other apps* and enable the *Phone Controller* accessibility service
+(both one-time, both opt-in), then Start. Your buttons float over the game; pressing
+one taps (or holds) the game at that button's position, so **place the buttons where
+the game's controls are** using the normal layout editor. Drag the red handle to
+move it; tap it or the notification to stop.
+
+The accessibility service is used **only to send taps you trigger — it never reads
+your screen** (`canRetrieveWindowContent=false`). This is the same mechanism
+auto-clickers and gamepad-mappers use. Best for taps and holds; recorded swipe
+gestures are on the roadmap, and competitive online games are not supported.
 
 ## Run (portable verdict core — no phone needed)
 

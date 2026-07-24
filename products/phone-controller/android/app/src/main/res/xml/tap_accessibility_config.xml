@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Config for TapAccessibilityService (Slice 12). The service exists ONLY to inject
+  synthetic taps/swipes into the foreground app for local-play overlay mode:
+    * canRetrieveWindowContent="false" — it never reads screen content (privacy).
+    * canPerformGestures="true" — the one capability it needs (dispatchGesture).
+    * no event types / no packages — it observes nothing; it only writes.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeViewClicked"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:canPerformGestures="true"
+    android:canRetrieveWindowContent="false"
+    android:description="@string/overlay_accessibility_desc"
+    android:notificationTimeout="100" />

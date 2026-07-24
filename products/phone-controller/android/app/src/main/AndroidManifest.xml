@@ -22,6 +22,14 @@
          feature; listening runs foreground-only and prefers on-device recognition. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Local-play overlay (Slice 12): float controls over other apps + keep the
+         overlay service alive while a game is in front. Both are opt-in: the user
+         grants "draw over other apps" and enables the accessibility service by hand;
+         nothing here runs unless they start overlay play. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
     <!-- Classic BT-HID needs Bluetooth hardware; not required=false so no-BT devices
          can still install and show the capability verdict. -->
     <uses-feature
@@ -47,5 +55,31 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Local-play overlay (Slice 12). specialUse: an input-overlay tool is not
+             one of Android's predefined FGS categories; sideload distribution has no
+             Play FGS policy review. -->
+        <service
+            android:name=".overlay.OverlayPlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="on-screen game/app control overlay driven by the user" />
+        </service>
+
+        <!-- Injects synthetic taps/swipes into the foreground app. canRetrieveWindow
+             Content=false (config) — it writes input, never reads the screen. -->
+        <service
+            android:name=".overlay.TapAccessibilityService"
+            android:exported="false"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/tap_accessibility_config" />
+        </service>
     </application>
 </manifest>

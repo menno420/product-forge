@@ -178,6 +178,24 @@
     <string name="voice_enabled_hint">Voice commands on — listening while the app is open.</string>
     <string name="voice_mic_denied">Microphone permission denied — voice commands stay off.</string>
 
+    <!-- Local-play overlay (Slice 12) -->
+    <string name="overlay_accessibility_desc">Lets Phone Controller tap and swipe the game you\'re playing when you press your overlay buttons. It never reads your screen — it only sends the taps you trigger.</string>
+    <string name="play_on_phone">Play on this phone…</string>
+    <string name="play_intro">Float one of your layouts over another app and turn each button into a tap on the game underneath. Place buttons where the game\'s controls are (using the layout editor). Best for taps and holds; competitive online games are not supported.</string>
+    <string name="play_pick_layout">Pick a layout to play with</string>
+    <string name="play_no_layouts">Make a custom layout first (Settings → Layouts…), placing buttons where the game\'s controls are.</string>
+    <string name="play_need_overlay">Allow “Draw over other apps” for Phone Controller, then tap Play again.</string>
+    <string name="play_need_accessibility">Turn on the Phone Controller accessibility service (it sends the taps), then tap Play again.</string>
+    <string name="play_start">Start overlay</string>
+    <string name="play_grant_overlay">Grant “draw over apps”</string>
+    <string name="play_grant_accessibility">Enable tap service</string>
+    <string name="play_started">Overlay started — open your game. Drag the red handle to move it; tap it (or the notification) to stop.</string>
+    <string name="overlay_stop_handle">■ Stop</string>
+    <string name="overlay_stop">Stop</string>
+    <string name="overlay_channel">Overlay play</string>
+    <string name="overlay_notif_title">Overlay controls active</string>
+    <string name="overlay_notif_text">Your buttons are floating over other apps. Tap Stop to end.</string>
+
     <!-- About & Support (the fairness promise) -->
     <string name="about_title">About &amp; Support…</string>
     <string name="fairness_promise">Phone Controller is complete for free: every key, every pad, the full editor. No ads. No subscriptions. Ever.\n\nA one-time supporter pack (≈€1, cosmetic button styles only) will exist once the app reaches the Play Store — until then, preview the styles below for free.</string>
