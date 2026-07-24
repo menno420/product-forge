@@ -60,7 +60,12 @@ browser/files app when prompted (normal sideload flow — this app is not on a s
    - **GBA pad** — D-pad + B/A + L/R + Select/Start in the console's arrangement.
    - **Analog sticks** — two real thumbsticks (left = X/Y, right = Z/RZ, deadzone
      configurable in Settings), face buttons, L1/L2/R2/R1, and a **Gyro** toggle
-     that maps phone tilt onto the right stick (aiming / steering).
+     that maps phone tilt onto an input. **Settings → Gyro…** picks what tilt drives
+     (right stick / left stick / **mouse pointer**), sets sensitivity and axis
+     inversion, and shows a **live visualizer** so you can see exactly what your tilt
+     is sending — even before connecting. Neutral "0 input" is wherever you hold the
+     phone when you enable gyro; **long-press the Gyro button to recenter** mid-game,
+     or use the Recenter button in Settings → Gyro….
    - **Your own layouts** — Settings → *Layouts…* → New: drag buttons anywhere;
      size presets + fine width/height steppers; assign any action (gamepad / D-pad /
      keys / modifiers / media / mouse / key combos / **macros** — timed multi-step

@@ -78,6 +78,9 @@ interface GyroToggle {
 
     /** Flip the driver; returns the resulting running state. */
     fun toggle(): Boolean
+
+    /** Re-capture neutral from the current hold (long-press; "set 0 input"). */
+    fun recenter() {}
 }
 
 object ControllerPads {
@@ -228,6 +231,12 @@ object ControllerPads {
             Haptics.tick(gyroButton)
             val running = gyro.toggle()
             gyroButton.text = if (running) gyroLabel else gyroOffLabel
+        }
+        // Long-press = recenter (set the neutral "0 input" to the current hold).
+        gyroButton.setOnLongClickListener {
+            Haptics.tick(gyroButton)
+            gyro.recenter()
+            true
         }
 
         val meta = b.row(

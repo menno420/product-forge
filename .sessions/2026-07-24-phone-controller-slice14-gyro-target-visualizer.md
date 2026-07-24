@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 14: gyro upgrade — selectable target, visualizer, recenter (builder lane)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: fable-5 · high · feature build
 
@@ -59,4 +59,20 @@ android.jar via the saved pipeline; gate green; CI green on PR; merge → tag
 
 ## Result
 
-_(fill on completion)_
+Shipped, all four blocks (A-D) + recenter. GyroDriver refactored to emit normalized
+(nx,ny) with invertX/Y + fullTiltDegrees; MainActivity routes to a selectable target
+(right/left stick absolute, mouse rate-mapped with remainder carry). New
+GyroVisualizerView (Canvas dot-in-box + crosshair + direction line). Settings →
+Gyro… dialog: target picker, sensitivity slider (40°→10°), invert X/Y, Recenter, and
+the visualizer running the sensor in PREVIEW while open (see it before connecting).
+Analog-pad Gyro button: click = arm/disarm (now target-aware), long-press = recenter.
+
+Guard recipes: armed vs preview split via syncGyroSensor() (sensor runs if either);
+stopGyro() fully disarms on pad-switch/disconnect/editor/destroy; mouse remainders
+reset on arm + target change so no pointer jump; driver stays target-agnostic (host
+routes) so the wire format is untouched. Default target = right stick → v0.6.0
+behaviour preserved for anyone who never opens the new dialog.
+
+hid-core untouched (59/59 stay green); app vs android.jar 83 classes. v0.14.0
+(versionCode 12), stable-signed, no HID descriptor change → installs in place, no
+re-pair. PR/tag/release: control/status.md heartbeat.

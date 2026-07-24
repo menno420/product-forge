@@ -1,16 +1,19 @@
 # product-forge · status
 
-updated: 2026-07-24T13:55:08Z
-phase: phone-controller Slice 14 IN PROGRESS — gyro upgrade (selectable target, live visualizer, recenter)
+updated: 2026-07-24T13:59:52Z
+phase: phone-controller Slice 14 SHIPPED — gyro upgrade (selectable target, live visualizer, recenter) (v0.14.0)
 lane: builder (phone-controller) · owner-live session 2026-07-23
 health: green
 
 ## This session (2026-07-23, owner-live directive)
-**Slice 14 in progress (2026-07-24):** owner — gyro not obvious what it drives; wants
-gyro linked to a chosen input + visible + settable neutral. GyroDriver emits
-normalized (nx,ny); selectable target (right/left stick, mouse-rate); GyroVisualizerView
-live preview; recenter (dialog button + Analog-pad long-press); sensitivity + invert;
-Settings → Gyro… dialog. Card:
+**Slice 14 SHIPPED (2026-07-24):** owner — gyro not obvious/uncustomizable.
+GyroDriver now emits normalized (nx,ny); host routes to selectable target (right
+stick / left stick / mouse-rate); new GyroVisualizerView live preview (runs sensor
+while the Gyro… dialog is open — see it before connecting); recenter (dialog button
++ Analog-pad Gyro long-press); sensitivity slider + invert X/Y; Settings → Gyro…
+dialog. Default target = right stick (v0.6.0 behaviour preserved). No descriptor
+change. v0.14.0 (versionCode 12). Verified pre-push: 59/59 JVM tests, app vs
+android.jar (83 classes). Card:
 `.sessions/2026-07-24-phone-controller-slice14-gyro-target-visualizer.md`.
 **Slice 13 SHIPPED (2026-07-24):** OP-style recorder — TouchGestureCodec (hid-core,
 +6 tests = 59/59), SavedGesture/GestureStore (prefs, fail-soft), full-screen
