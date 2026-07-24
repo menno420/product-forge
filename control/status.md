@@ -1,11 +1,20 @@
 # product-forge · status
 
-updated: 2026-07-24T05:53:39Z
-phase: phone-controller Slice 6 SHIPPED — custom layout editor, analog sticks + gyro, turbo/haptics, dim/immersive, per-host memory, stale-pairing warning (v0.6.0)
+updated: 2026-07-24T07:47:14Z
+phase: phone-controller Slice 7 SHIPPED — visual customization (per-button colors/shapes/opacity/text-size, size steppers, duplicates, pad backgrounds, ABXY tints) (v0.7.0)
 lane: builder (phone-controller) · owner-live session 2026-07-23
 health: green
 
 ## This session (2026-07-23, owner-live directive)
+**Slice 7 SHIPPED (2026-07-24, same conversation):** owner visual-customization ask —
+per-button color (16 swatches, auto-contrast text, pressed-darken), shape
+(rounded/circle/pill/square), opacity presets, text size, S–XL + 2% W/H steppers,
+duplicate button + duplicate layout, per-layout pad background (incl. OLED black),
+classic ABXY tints on built-in pads. Saved v0.6.0 layouts load unchanged (optional
+JSON fields). No descriptor change — no re-pair. v0.7.0. Verified pre-push: app
+compiles vs android.jar (48 classes); JVM suite unchanged 38/38. Card:
+`.sessions/2026-07-24-phone-controller-slice7-visual-customization.md`.
+
 **Slice 6 SHIPPED (same conversation):** the research gap plan, implemented — custom
 layout editor (drag/resize/assign any action, per-button turbo 10 Hz, saved layouts in
 the picker) · Analog-sticks pad (descriptor rev: right stick = Z/RZ; deadzone setting)

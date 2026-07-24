@@ -38,6 +38,9 @@ enum class PadActionType {
 
 data class PadAction(val type: PadActionType, val code: String)
 
+/** Button shapes the styler can render (stored by name; default ROUNDED). */
+enum class PadShape { ROUNDED, CIRCLE, PILL, SQUARE }
+
 data class PadButtonSpec(
     var xPct: Float,
     var yPct: Float,
@@ -46,12 +49,17 @@ data class PadButtonSpec(
     var label: String,
     var action: PadAction,
     var turbo: Boolean = false,
+    /** ARGB background color, or null for the platform-default button look. */
+    var colorArgb: Int? = null,
+    var shape: PadShape = PadShape.ROUNDED,
+    var textSizeSp: Int = 14,
 ) {
     fun clampToPad() {
-        wPct = wPct.coerceIn(0.06f, 0.5f)
-        hPct = hPct.coerceIn(0.08f, 0.5f)
+        wPct = wPct.coerceIn(0.05f, 0.6f)
+        hPct = hPct.coerceIn(0.06f, 0.6f)
         xPct = xPct.coerceIn(0f, 1f - wPct)
         yPct = yPct.coerceIn(0f, 1f - hPct)
+        textSizeSp = textSizeSp.coerceIn(9, 26)
     }
 
     fun toJson(): JSONObject = JSONObject()
@@ -63,8 +71,13 @@ data class PadButtonSpec(
         .put("type", action.type.name)
         .put("code", action.code)
         .put("turbo", turbo)
+        .put("shape", shape.name)
+        .put("textSp", textSizeSp)
+        .also { o -> colorArgb?.let { o.put("color", it) } }
 
     companion object {
+        // Visual fields are OPTIONAL with defaults so layouts saved by older
+        // versions load unchanged (guard recipe: never make a new field required).
         fun fromJson(o: JSONObject): PadButtonSpec = PadButtonSpec(
             xPct = o.getDouble("x").toFloat(),
             yPct = o.getDouble("y").toFloat(),
@@ -73,6 +86,10 @@ data class PadButtonSpec(
             label = o.getString("label"),
             action = PadAction(PadActionType.valueOf(o.getString("type")), o.getString("code")),
             turbo = o.optBoolean("turbo", false),
+            colorArgb = if (o.has("color")) o.getInt("color") else null,
+            shape = runCatching { PadShape.valueOf(o.optString("shape", "ROUNDED")) }
+                .getOrDefault(PadShape.ROUNDED),
+            textSizeSp = o.optInt("textSp", 14),
         ).also { it.clampToPad() }
     }
 }
@@ -81,18 +98,34 @@ data class CustomLayout(
     val id: String,
     var name: String,
     val buttons: MutableList<PadButtonSpec>,
+    /** ARGB pad background, or null for the default window background. */
+    var bgColorArgb: Int? = null,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("id", id)
         .put("name", name)
         .put("buttons", JSONArray().also { arr -> buttons.forEach { arr.put(it.toJson()) } })
+        .also { o -> bgColorArgb?.let { o.put("bg", it) } }
+
+    /** A deep copy under a new id/name (layout-manager Duplicate). */
+    fun duplicate(newId: String, newName: String): CustomLayout = CustomLayout(
+        id = newId,
+        name = newName,
+        buttons = buttons.map { it.copy() }.toMutableList(),
+        bgColorArgb = bgColorArgb,
+    )
 
     companion object {
         fun fromJson(o: JSONObject): CustomLayout {
             val buttons = mutableListOf<PadButtonSpec>()
             val arr = o.getJSONArray("buttons")
             for (i in 0 until arr.length()) buttons.add(PadButtonSpec.fromJson(arr.getJSONObject(i)))
-            return CustomLayout(o.getString("id"), o.getString("name"), buttons)
+            return CustomLayout(
+                o.getString("id"),
+                o.getString("name"),
+                buttons,
+                bgColorArgb = if (o.has("bg")) o.getInt("bg") else null,
+            )
         }
 
         /** A starter template (GBA-ish core) the editor seeds new layouts from. */

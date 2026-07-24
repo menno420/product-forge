@@ -94,10 +94,10 @@ object ControllerPads {
             addView(b.gap(0.5f))
             addView(
                 b.grid3(
-                    null, b.slide("Y") { d -> host.onGamepadButton(GamepadButton.Y, d) }, null,
-                    b.slide("X") { d -> host.onGamepadButton(GamepadButton.X, d) }, null,
-                    b.slide("B") { d -> host.onGamepadButton(GamepadButton.B, d) },
-                    null, b.slide("A") { d -> host.onGamepadButton(GamepadButton.A, d) }, null,
+                    null, b.slideTinted("Y", TINT_Y) { d -> host.onGamepadButton(GamepadButton.Y, d) }, null,
+                    b.slideTinted("X", TINT_X) { d -> host.onGamepadButton(GamepadButton.X, d) }, null,
+                    b.slideTinted("B", TINT_B) { d -> host.onGamepadButton(GamepadButton.B, d) },
+                    null, b.slideTinted("A", TINT_A) { d -> host.onGamepadButton(GamepadButton.A, d) }, null,
                 ),
                 LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 2f),
             )
@@ -129,9 +129,9 @@ object ControllerPads {
         )
         // GBA face pair: A upper-right, B lower-left (the console's diagonal).
         val face = b.grid3(
-            null, null, b.slide("A") { d -> host.onGamepadButton(GamepadButton.A, d) },
+            null, null, b.slideTinted("A", TINT_A) { d -> host.onGamepadButton(GamepadButton.A, d) },
             null, null, null,
-            b.slide("B") { d -> host.onGamepadButton(GamepadButton.B, d) }, null, null,
+            b.slideTinted("B", TINT_B) { d -> host.onGamepadButton(GamepadButton.B, d) }, null, null,
         )
         val clusters = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -205,10 +205,10 @@ object ControllerPads {
             .apply { this.deadzonePct = deadzonePct }
 
         val diamond = b.grid3(
-            null, b.slide("Y") { d -> host.onGamepadButton(GamepadButton.Y, d) }, null,
-            b.slide("X") { d -> host.onGamepadButton(GamepadButton.X, d) }, null,
-            b.slide("B") { d -> host.onGamepadButton(GamepadButton.B, d) },
-            null, b.slide("A") { d -> host.onGamepadButton(GamepadButton.A, d) }, null,
+            null, b.slideTinted("Y", TINT_Y) { d -> host.onGamepadButton(GamepadButton.Y, d) }, null,
+            b.slideTinted("X", TINT_X) { d -> host.onGamepadButton(GamepadButton.X, d) }, null,
+            b.slideTinted("B", TINT_B) { d -> host.onGamepadButton(GamepadButton.B, d) },
+            null, b.slideTinted("A", TINT_A) { d -> host.onGamepadButton(GamepadButton.A, d) }, null,
         )
 
         val sticksRow = LinearLayout(context).apply {
@@ -378,6 +378,14 @@ object ControllerPads {
     private const val SENS_MAX = 3.0f
     private const val SENS_STEPS = 25
 
+    // Classic face-button tints (soft alpha over the default button look).
+    // Plain vals: hex literals above Int.MAX_VALUE need .toInt(), which is not a
+    // constant expression.
+    private val TINT_A = 0x8043A047.toInt() // green
+    private val TINT_B = 0x80E53935.toInt() // red
+    private val TINT_X = 0x801E88E5.toInt() // blue
+    private val TINT_Y = 0x80FDD835.toInt() // yellow
+
     /** Small per-pad widget factory (dp math, button shapes, slide-pad assembly). */
     private class Builder(val context: Context) {
 
@@ -394,6 +402,12 @@ object ControllerPads {
                 isClickable = false
                 isFocusable = false
                 slideActions[this] = onChange
+            }
+
+        /** A slide button with a classic face tint (subtle, over the default look). */
+        fun slideTinted(label: String, argb: Int, onChange: (down: Boolean) -> Unit): Button =
+            slide(label, onChange).apply {
+                backgroundTintList = android.content.res.ColorStateList.valueOf(argb)
             }
 
         /** Wire the router onto a finished slide-pad tree. */
