@@ -21,6 +21,8 @@ import android.app.AlertDialog
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -31,6 +33,7 @@ import android.os.Bundle
 import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -67,6 +70,7 @@ import com.productforge.phonecontroller.ui.CustomPadView
 import com.productforge.phonecontroller.ui.GyroDriver
 import com.productforge.phonecontroller.ui.GyroToggle
 import com.productforge.phonecontroller.ui.Haptics
+import com.productforge.phonecontroller.ui.MacroRunner
 import com.productforge.phonecontroller.ui.PadHost
 import com.productforge.phonecontroller.ui.Supporter
 import com.productforge.phonecontroller.ui.TextTyper
@@ -106,6 +110,15 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             set(value) {
                 prefs().edit().putFloat(PREF_SENSITIVITY, value).apply()
             }
+        override val invertScroll: Boolean
+            get() = prefs().getBoolean(PREF_SCROLL_INVERT, false)
+    }
+
+    private val macroRunner by lazy {
+        // MACRO is filtered here too (belt-and-braces with the parser's no-nesting).
+        MacroRunner { type, code ->
+            if (type == PadActionType.MACRO.name) null else resolveRaw(type, code)
+        }
     }
 
     private val gyroDriver by lazy {
@@ -142,6 +155,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         Haptics.enabled = prefs().getBoolean(PREF_HAPTICS, true)
         Supporter.unlocked = prefs().getBoolean(PREF_SUPPORTER, false)
+        turbo.setRateHz(prefs().getInt(PREF_TURBO_HZ, 10))
         currentSelection = prefs().getString(PREF_SELECTION, "b:0") ?: "b:0"
         lastStatus = getString(R.string.probing)
         buildUi()
@@ -155,11 +169,50 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
 
     override fun onDestroy() {
         textTyper.cancel()
+        macroRunner.cancel()
         gyroDriver.stop()
         turbo.cancelAll()
         transport?.stop()
         transport = null
         super.onDestroy()
+    }
+
+    // --- hardware volume keys as inputs (Slice 10) ------------------------------------
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        volumeAction(keyCode)?.let { action ->
+            // Holds ride the initial down/up pair; auto-repeats are noise here.
+            if (event.repeatCount == 0) action(true)
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        volumeAction(keyCode)?.let { action ->
+            action(false)
+            return true
+        }
+        return super.onKeyUp(keyCode, event)
+    }
+
+    /**
+     * The mapped sink for a volume key, or null when the key should behave normally
+     * (mapping off, not connected, or the editor is open). Volume-up = the RIGHT
+     * half of each pair, volume-down = the LEFT.
+     */
+    private fun volumeAction(keyCode: Int): ((Boolean) -> Unit)? {
+        val isUp = keyCode == KeyEvent.KEYCODE_VOLUME_UP
+        val isDown = keyCode == KeyEvent.KEYCODE_VOLUME_DOWN
+        if (!isUp && !isDown) return null
+        if (editingLayout != null) return null
+        if (transport?.isConnected != true) return null
+        return when (prefs().getInt(PREF_VOLKEYS, 0)) {
+            1 -> if (isUp) ({ d -> onGamepadButton(GamepadButton.R1, d) }) else ({ d -> onGamepadButton(GamepadButton.L1, d) })
+            2 -> if (isUp) ({ d -> onGamepadButton(GamepadButton.R2, d) }) else ({ d -> onGamepadButton(GamepadButton.L2, d) })
+            3 -> if (isUp) ({ d -> onKey(KeyUsage.PAGE_UP, d) }) else ({ d -> onKey(KeyUsage.PAGE_DOWN, d) })
+            else -> null
+        }
     }
 
     // --- permission flow ------------------------------------------------------------
@@ -319,6 +372,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                 device?.address?.let { addr -> onHostConnected(addr) }
             } else {
                 textTyper.cancel()
+                macroRunner.cancel()
                 turbo.cancelAll()
                 gyroDriver.stop()
                 setStatus(getString(R.string.disconnected_hint))
@@ -447,6 +501,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
     private fun showSelection(key: String) {
         // Leaving a pad mid-hold: views vanish and UP events never arrive, so zero
         // everything and stop the auto-repeaters/sensor first (guard recipe).
+        macroRunner.cancel()
         turbo.cancelAll()
         gyroDriver.stop()
         transport?.releaseHeldInputs()
@@ -499,37 +554,39 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         )
     }
 
-    /** Map a custom-layout action spec to the matching transport call. */
-    private fun resolveAction(spec: PadButtonSpec): (Boolean) -> Unit {
-        val action: PadAction = spec.action
-        return runCatching<(Boolean) -> Unit> {
-            when (action.type) {
+    /**
+     * Resolve a (type name, code) pair to its transport sink; null on anything
+     * malformed. Shared by pad buttons AND macro steps — one action vocabulary.
+     */
+    private fun resolveRaw(typeName: String, code: String): ((Boolean) -> Unit)? =
+        runCatching<(Boolean) -> Unit> {
+            when (PadActionType.valueOf(typeName)) {
                 PadActionType.GAMEPAD -> {
-                    val b = GamepadButton.valueOf(action.code)
+                    val b = GamepadButton.valueOf(code)
                     ({ down -> onGamepadButton(b, down) })
                 }
                 PadActionType.DPAD -> {
-                    val d = DpadDirection.valueOf(action.code)
+                    val d = DpadDirection.valueOf(code)
                     ({ down -> onDpad(d, down) })
                 }
                 PadActionType.KEY -> {
-                    val usage = action.code.toInt()
+                    val usage = code.toInt()
                     ({ down -> onKey(usage, down) })
                 }
                 PadActionType.MODIFIER -> {
-                    val mask = action.code.toInt()
+                    val mask = code.toInt()
                     ({ down -> onModifier(mask, down) })
                 }
                 PadActionType.MEDIA -> {
-                    val m = MediaButton.valueOf(action.code)
+                    val m = MediaButton.valueOf(code)
                     ({ down -> if (down) onMediaTap(m) })
                 }
                 PadActionType.MOUSE -> {
-                    val mb = MouseButton.valueOf(action.code)
+                    val mb = MouseButton.valueOf(code)
                     ({ down -> onMouseButton(mb, down) })
                 }
                 PadActionType.COMBO -> {
-                    val (mask, usage) = Combos.parse(action.code) ?: error("bad combo")
+                    val (mask, usage) = Combos.parse(code) ?: error("bad combo")
                     ({ down ->
                         // Modifiers wrap the key: press before, release after.
                         if (down) {
@@ -541,20 +598,29 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                         }
                     })
                 }
+                PadActionType.MACRO -> {
+                    ({ down -> if (down) macroRunner.play(code) })
+                }
             }
-        }.getOrElse { { _ -> } } // a corrupt action never crashes the pad
-    }
+        }.getOrNull()
+
+    /** Map a custom-layout action spec to the matching transport call. */
+    private fun resolveAction(spec: PadButtonSpec): (Boolean) -> Unit =
+        resolveRaw(spec.action.type.name, spec.action.code)
+            ?: { _ -> } // a corrupt action never crashes the pad
 
     // --- layout manager + editor -----------------------------------------------------------
 
     private fun openLayoutManager() {
         val layouts = layoutStore.all()
-        val items = layouts.map { it.name } + getString(R.string.new_layout)
+        val items = layouts.map { it.name } +
+            getString(R.string.new_layout) + getString(R.string.layout_import)
         AlertDialog.Builder(this)
             .setTitle(R.string.layouts_title)
             .setItems(items.toTypedArray()) { _, which ->
-                if (which == layouts.size) {
-                    promptText(getString(R.string.new_layout_name), "") { name ->
+                when {
+                    which < layouts.size -> layoutOptions(layouts[which])
+                    which == layouts.size -> promptText(getString(R.string.new_layout_name), "") { name ->
                         val layout = CustomLayout.template(
                             "cl_${System.currentTimeMillis()}",
                             name.ifBlank { getString(R.string.new_layout) },
@@ -562,59 +628,108 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                         layoutStore.save(layout)
                         startEditor(layout)
                     }
-                } else {
-                    layoutOptions(layouts[which])
+                    else -> importLayoutDialog()
                 }
             }
             .show()
     }
 
     private fun layoutOptions(layout: CustomLayout) {
-        val options = arrayOf(
-            getString(R.string.layout_use),
-            getString(R.string.layout_edit),
-            getString(R.string.layout_background),
-            getString(R.string.layout_duplicate),
-            getString(R.string.layout_rename),
-            getString(R.string.layout_delete),
+        // Label→handler pairs (indexes can never drift as entries are added).
+        val entries = listOf<Pair<String, () -> Unit>>(
+            getString(R.string.layout_use) to {
+                showSelection("c:${layout.id}")
+                rebuildSpinnerSelection()
+            },
+            getString(R.string.layout_edit) to { startEditor(layout) },
+            getString(R.string.layout_background) to {
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.layout_background)
+                    .setItems(ButtonStyler.PAD_BACKGROUNDS.map { it.first }.toTypedArray()) { _, bg ->
+                        layout.bgColorArgb = ButtonStyler.PAD_BACKGROUNDS[bg].second
+                        layoutStore.save(layout)
+                        if (currentSelection == "c:${layout.id}") showSelection(currentSelection)
+                    }
+                    .show()
+                Unit
+            },
+            getString(R.string.layout_share) to { shareLayout(layout) },
+            getString(R.string.layout_duplicate) to {
+                val copy = layout.duplicate(
+                    "cl_${System.currentTimeMillis()}",
+                    getString(R.string.layout_copy_name_fmt, layout.name),
+                )
+                layoutStore.save(copy)
+                rebuildSpinnerSelection()
+            },
+            getString(R.string.layout_rename) to {
+                promptText(getString(R.string.layout_rename), layout.name) { name ->
+                    layout.name = name.ifBlank { layout.name }
+                    layoutStore.save(layout)
+                    rebuildSpinnerSelection()
+                }
+            },
+            getString(R.string.layout_delete) to {
+                layoutStore.delete(layout.id)
+                if (currentSelection == "c:${layout.id}") showSelection("b:0")
+                rebuildSpinnerSelection()
+            },
         )
         AlertDialog.Builder(this)
             .setTitle(layout.name)
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> {
-                        showSelection("c:${layout.id}")
-                        rebuildSpinnerSelection()
+            .setItems(entries.map { it.first }.toTypedArray()) { _, which -> entries[which].second() }
+            .show()
+    }
+
+    /** Share a layout as text (share sheet + clipboard) — the community loop. */
+    private fun shareLayout(layout: CustomLayout) {
+        val share = layout.toShareString()
+        (getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager)
+            ?.setPrimaryClip(ClipData.newPlainText("phone-controller layout", share))
+        runCatching {
+            startActivity(
+                Intent.createChooser(
+                    Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, share)
+                    },
+                    layout.name,
+                ),
+            )
+        }
+        setDetail(getString(R.string.layout_share_copied))
+    }
+
+    private fun importLayoutDialog() {
+        val input = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            minLines = 3
+            maxLines = 8
+            hint = getString(R.string.layout_import_hint)
+        }
+        val pad = dp(16)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.layout_import)
+            .setView(FrameLayout(this).apply {
+                setPadding(pad, dp(4), pad, 0)
+                addView(input)
+            })
+            .setPositiveButton(R.string.layout_import_go) { _, _ ->
+                val imported = CustomLayout.fromShareString(
+                    input.text.toString(), "cl_${System.currentTimeMillis()}",
+                )
+                if (imported == null) {
+                    setDetail(getString(R.string.layout_import_failed))
+                } else {
+                    if (layoutStore.all().any { it.name == imported.name }) {
+                        imported.name = getString(R.string.layout_imported_name_fmt, imported.name)
                     }
-                    1 -> startEditor(layout)
-                    2 -> AlertDialog.Builder(this)
-                        .setTitle(R.string.layout_background)
-                        .setItems(ButtonStyler.PAD_BACKGROUNDS.map { it.first }.toTypedArray()) { _, bg ->
-                            layout.bgColorArgb = ButtonStyler.PAD_BACKGROUNDS[bg].second
-                            layoutStore.save(layout)
-                            if (currentSelection == "c:${layout.id}") showSelection(currentSelection)
-                        }
-                        .show()
-                    3 -> {
-                        val copy = layout.duplicate(
-                            "cl_${System.currentTimeMillis()}",
-                            getString(R.string.layout_copy_name_fmt, layout.name),
-                        )
-                        layoutStore.save(copy)
-                        rebuildSpinnerSelection()
-                    }
-                    4 -> promptText(getString(R.string.layout_rename), layout.name) { name ->
-                        layout.name = name.ifBlank { layout.name }
-                        layoutStore.save(layout)
-                        rebuildSpinnerSelection()
-                    }
-                    5 -> {
-                        layoutStore.delete(layout.id)
-                        if (currentSelection == "c:${layout.id}") showSelection("b:0")
-                        rebuildSpinnerSelection()
-                    }
+                    layoutStore.save(imported)
+                    rebuildSpinnerSelection()
+                    setDetail(getString(R.string.layout_imported_fmt, imported.name))
                 }
             }
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
@@ -683,8 +798,13 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         val entries = listOf<Pair<String, () -> Unit>>(
             getString(R.string.editor_change_action) to { pickActionType(spec) },
             getString(turboLabel) to {
-                spec.turbo = !spec.turbo
-                editingView?.rebuild()
+                if (spec.action.type == PadActionType.MACRO) {
+                    // Auto-fire on a timed sequence = chaos; refuse with a hint.
+                    setDetail(getString(R.string.macro_no_turbo))
+                } else {
+                    spec.turbo = !spec.turbo
+                    editingView?.rebuild()
+                }
                 Unit
             },
             getString(R.string.editor_size) to { pickSize(spec) },
@@ -883,25 +1003,37 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         for (c in '0'..'9') add(c.toString() to KeyUsage.digitUsage(c).toString())
     }
 
+    /** Simple per-type choice lists (label → code); COMBO/MACRO have their own flows. */
+    private fun actionChoices(type: PadActionType): List<Pair<String, String>> = when (type) {
+        PadActionType.GAMEPAD -> GamepadButton.entries.map { it.name to it.name }
+        PadActionType.DPAD -> DpadDirection.entries.map { it.name to it.name }
+        PadActionType.MEDIA -> MediaButton.entries.map { it.name to it.name }
+        PadActionType.MOUSE -> MouseButton.entries.map { it.name to it.name }
+        PadActionType.MODIFIER -> listOf(
+            "SHIFT" to KeyUsage.MOD_LEFT_SHIFT.toString(),
+            "CTRL" to KeyUsage.MOD_LEFT_CTRL.toString(),
+            "ALT" to KeyUsage.MOD_LEFT_ALT.toString(),
+            "WIN/CMD" to KeyUsage.MOD_LEFT_GUI.toString(),
+        )
+        PadActionType.KEY -> keyChoices()
+        PadActionType.COMBO, PadActionType.MACRO -> emptyList()
+    }
+
     private fun pickActionCode(spec: PadButtonSpec, type: PadActionType) {
         if (type == PadActionType.COMBO) {
             pickCombo(spec)
             return
         }
-        val choices: List<Pair<String, String>> = when (type) {
-            PadActionType.GAMEPAD -> GamepadButton.entries.map { it.name to it.name }
-            PadActionType.DPAD -> DpadDirection.entries.map { it.name to it.name }
-            PadActionType.MEDIA -> MediaButton.entries.map { it.name to it.name }
-            PadActionType.MOUSE -> MouseButton.entries.map { it.name to it.name }
-            PadActionType.MODIFIER -> listOf(
-                "SHIFT" to KeyUsage.MOD_LEFT_SHIFT.toString(),
-                "CTRL" to KeyUsage.MOD_LEFT_CTRL.toString(),
-                "ALT" to KeyUsage.MOD_LEFT_ALT.toString(),
-                "WIN/CMD" to KeyUsage.MOD_LEFT_GUI.toString(),
-            )
-            PadActionType.KEY -> keyChoices()
-            PadActionType.COMBO -> emptyList() // handled above
+        if (type == PadActionType.MACRO) {
+            // Switching to MACRO keeps any existing steps; otherwise start empty.
+            if (spec.action.type != PadActionType.MACRO) {
+                spec.action = PadAction(PadActionType.MACRO, "[]")
+                if (spec.label.isBlank()) spec.label = getString(R.string.macro_default_label)
+            }
+            macroDialog(spec)
+            return
         }
+        val choices = actionChoices(type)
         AlertDialog.Builder(this)
             .setTitle(type.name)
             .setItems(choices.map { it.first }.toTypedArray()) { _, which ->
@@ -909,6 +1041,84 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                 spec.action = PadAction(type, code)
                 spec.label = label
                 editingView?.rebuild()
+            }
+            .show()
+    }
+
+    // --- macro builder (Slice 10) ---------------------------------------------------
+
+    private fun macroSteps(spec: PadButtonSpec): String =
+        if (spec.action.type == PadActionType.MACRO) spec.action.code else "[]"
+
+    private fun macroDialog(spec: PadButtonSpec) {
+        val summary = MacroRunner.describe(macroSteps(spec))
+            .ifEmpty { getString(R.string.macro_empty) }
+        // setMessage + setItems are mutually exclusive on AlertDialog, so the step
+        // summary rides as the (harmless, reopening) first list row.
+        val entries = listOf<Pair<String, () -> Unit>>(
+            getString(R.string.macro_steps_fmt, summary) to { macroDialog(spec) },
+            getString(R.string.macro_add_step) to {
+                pickStepAction { type, code, label ->
+                    spec.action = PadAction(
+                        PadActionType.MACRO,
+                        MacroRunner.appendStep(macroSteps(spec), type, code, label),
+                    )
+                    macroDialog(spec)
+                }
+            },
+            getString(R.string.macro_add_pause) to {
+                spec.action = PadAction(
+                    PadActionType.MACRO,
+                    MacroRunner.appendStep(
+                        macroSteps(spec), MacroRunner.TYPE_WAIT, "", "⏸",
+                        holdMs = PAUSE_STEP_MS, gapMs = 0L,
+                    ),
+                )
+                macroDialog(spec)
+            },
+            getString(R.string.macro_remove_last) to {
+                spec.action = PadAction(
+                    PadActionType.MACRO,
+                    MacroRunner.removeLastStep(macroSteps(spec)),
+                )
+                macroDialog(spec)
+            },
+            getString(R.string.macro_done) to {
+                editingView?.rebuild()
+                Unit
+            },
+        )
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.macro_title_fmt, MacroRunner.parse(macroSteps(spec)).size))
+            .setItems(entries.map { it.first }.toTypedArray()) { _, which -> entries[which].second() }
+            .show()
+    }
+
+    /** Pick one macro step: type (no MACRO nesting) → code. COMBO steps use presets. */
+    private fun pickStepAction(onPicked: (String, String, String) -> Unit) {
+        val types = PadActionType.entries.filter { it != PadActionType.MACRO }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.macro_step_type)
+            .setItems(types.map { it.name }.toTypedArray()) { _, ti ->
+                val type = types[ti]
+                if (type == PadActionType.COMBO) {
+                    AlertDialog.Builder(this)
+                        .setTitle(R.string.combo_title)
+                        .setItems(Combos.PRESETS.map { it.label }.toTypedArray()) { _, ci ->
+                            val chord = Combos.PRESETS[ci]
+                            onPicked(PadActionType.COMBO.name, chord.code, chord.label)
+                        }
+                        .show()
+                } else {
+                    val choices = actionChoices(type)
+                    AlertDialog.Builder(this)
+                        .setTitle(type.name)
+                        .setItems(choices.map { it.first }.toTypedArray()) { _, ci ->
+                            val (label, code) = choices[ci]
+                            onPicked(type.name, code, label)
+                        }
+                        .show()
+                }
             }
             .show()
     }
@@ -1012,6 +1222,71 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                     override fun onStopTrackingTouch(sb: SeekBar?) {}
                 })
             },
+        )
+
+        val turboLabel = TextView(this).apply {
+            text = getString(R.string.settings_turbo_fmt, prefs().getInt(PREF_TURBO_HZ, 10))
+            textSize = 13f
+            setPadding(0, dp(12), 0, 0)
+        }
+        content.addView(turboLabel)
+        content.addView(
+            SeekBar(this).apply {
+                max = 15 // 5..20 Hz
+                progress = (prefs().getInt(PREF_TURBO_HZ, 10) - 5).coerceIn(0, 15)
+                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(sb: SeekBar?, value: Int, fromUser: Boolean) {
+                        val hz = value + 5
+                        prefs().edit().putInt(PREF_TURBO_HZ, hz).apply()
+                        turbo.setRateHz(hz)
+                        turboLabel.text = getString(R.string.settings_turbo_fmt, hz)
+                    }
+                    override fun onStartTrackingTouch(sb: SeekBar?) {}
+                    override fun onStopTrackingTouch(sb: SeekBar?) {}
+                })
+            },
+        )
+
+        content.addView(
+            Switch(this).apply {
+                text = getString(R.string.settings_scroll_invert)
+                isChecked = prefs().getBoolean(PREF_SCROLL_INVERT, false)
+                setOnCheckedChangeListener { _, checked ->
+                    prefs().edit().putBoolean(PREF_SCROLL_INVERT, checked).apply()
+                }
+                setPadding(0, dp(12), 0, 0)
+            },
+        )
+
+        val volumeOptions = listOf(
+            getString(R.string.volkeys_off),
+            getString(R.string.volkeys_l1r1),
+            getString(R.string.volkeys_l2r2),
+            getString(R.string.volkeys_pages),
+        )
+        content.addView(
+            Button(this).apply {
+                fun label() = getString(
+                    R.string.settings_volkeys_fmt,
+                    volumeOptions[prefs().getInt(PREF_VOLKEYS, 0).coerceIn(0, 3)],
+                )
+                text = label()
+                isAllCaps = false
+                textSize = 13f
+                ButtonStyler.flatStyle(this, ButtonStyler.SURFACE, cornerDp = 18f)
+                setOnClickListener {
+                    AlertDialog.Builder(this@MainActivity)
+                        .setTitle(R.string.settings_volkeys_title)
+                        .setItems(volumeOptions.toTypedArray()) { _, which ->
+                            prefs().edit().putInt(PREF_VOLKEYS, which).apply()
+                            text = label()
+                        }
+                        .show()
+                }
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(8) },
         )
 
         content.addView(
@@ -1329,6 +1604,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         const val RC_BLUETOOTH = 41
         const val DISCOVERABLE_SECONDS = 120
         const val SWATCH_COLUMNS = 4
+        const val PAUSE_STEP_MS = 400L
         const val PREF_SELECTION = "layout_sel"
         const val PREF_SENSITIVITY = "touchpad_sensitivity"
         const val PREF_HAPTICS = "haptics"
@@ -1339,6 +1615,9 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         const val PREF_APP_BG = "app_bg"
         const val PREF_NDS_PEN = "nds_pen"
         const val PREF_SUPPORTER = "supporter_preview"
+        const val PREF_TURBO_HZ = "turbo_hz"
+        const val PREF_SCROLL_INVERT = "scroll_invert"
+        const val PREF_VOLKEYS = "volume_keys_mode"
 
         /** Swap to Ko-fi/GitHub Sponsors when the owner creates one (Slice-9 card). */
         const val SUPPORT_URL = "https://github.com/menno420/product-forge"

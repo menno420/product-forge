@@ -48,6 +48,9 @@ class TouchpadView(context: Context, private val listener: Listener) : View(cont
      */
     var penMode: Boolean = false
 
+    /** Invert two-finger scroll direction (Slice 10 Settings toggle). */
+    var invertScroll: Boolean = false
+
     private val density = resources.displayMetrics.density
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
 
@@ -120,12 +123,13 @@ class TouchpadView(context: Context, private val listener: Listener) : View(cont
                 if (abs(dxPx) > touchSlop || abs(dyPx) > touchSlop) movedBeyondSlop = true
 
                 if (e.pointerCount >= 2) {
-                    // Two-finger drag = natural scroll: content follows the fingers.
+                    // Two-finger drag = natural scroll: content follows the fingers
+                    // (invertScroll flips to wheel-style for those who prefer it).
                     scrollRemDp += dyPx / density
                     val notches = (scrollRemDp / SCROLL_DP_PER_NOTCH).toInt()
                     if (notches != 0) {
                         scrollRemDp -= notches * SCROLL_DP_PER_NOTCH
-                        listener.onScroll(notches)
+                        listener.onScroll(if (invertScroll) -notches else notches)
                     }
                 } else {
                     val gain = GAIN * sensitivity / density
