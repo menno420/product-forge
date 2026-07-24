@@ -60,11 +60,57 @@ enum class PadShape { ROUNDED, CIRCLE, PILL, SQUARE }
 /** Supporter style-pack fills (Slice 9): flat is free; the rest are the €1 treats. */
 enum class PadFx { FLAT, GRADIENT, GLOW }
 
+/**
+ * Anything the editor can drag/resize by percent (Slice 15) — buttons AND widgets.
+ * Sharing one interface lets the editor's drag logic move either kind uniformly.
+ */
+interface PadPositioned {
+    var xPct: Float
+    var yPct: Float
+    var wPct: Float
+    var hPct: Float
+    fun clampToPad()
+}
+
+/** Interactive widgets a custom layout can hold beyond plain buttons (Slice 15). */
+enum class PadWidgetType { LEFT_STICK, RIGHT_STICK, DPAD, TOUCHPAD, GYRO }
+
+/** A placed widget: a type + percent rect (bigger min size than a button). */
+data class PadWidgetSpec(
+    var type: PadWidgetType,
+    override var xPct: Float,
+    override var yPct: Float,
+    override var wPct: Float,
+    override var hPct: Float,
+) : PadPositioned {
+    override fun clampToPad() {
+        wPct = wPct.coerceIn(0.10f, 0.9f)
+        hPct = hPct.coerceIn(0.10f, 0.9f)
+        xPct = xPct.coerceIn(0f, 1f - wPct)
+        yPct = yPct.coerceIn(0f, 1f - hPct)
+    }
+
+    fun toJson(): JSONObject = JSONObject()
+        .put("wt", type.name)
+        .put("x", xPct.toDouble()).put("y", yPct.toDouble())
+        .put("w", wPct.toDouble()).put("h", hPct.toDouble())
+
+    companion object {
+        fun fromJson(o: JSONObject): PadWidgetSpec = PadWidgetSpec(
+            type = PadWidgetType.valueOf(o.getString("wt")),
+            xPct = o.getDouble("x").toFloat(),
+            yPct = o.getDouble("y").toFloat(),
+            wPct = o.getDouble("w").toFloat(),
+            hPct = o.getDouble("h").toFloat(),
+        ).also { it.clampToPad() }
+    }
+}
+
 data class PadButtonSpec(
-    var xPct: Float,
-    var yPct: Float,
-    var wPct: Float,
-    var hPct: Float,
+    override var xPct: Float,
+    override var yPct: Float,
+    override var wPct: Float,
+    override var hPct: Float,
     var label: String,
     var action: PadAction,
     var turbo: Boolean = false,
@@ -73,8 +119,8 @@ data class PadButtonSpec(
     var shape: PadShape = PadShape.ROUNDED,
     var textSizeSp: Int = 14,
     var fx: PadFx = PadFx.FLAT,
-) {
-    fun clampToPad() {
+) : PadPositioned {
+    override fun clampToPad() {
         wPct = wPct.coerceIn(0.05f, 0.6f)
         hPct = hPct.coerceIn(0.06f, 0.6f)
         xPct = xPct.coerceIn(0f, 1f - wPct)
@@ -123,12 +169,20 @@ data class CustomLayout(
     val buttons: MutableList<PadButtonSpec>,
     /** ARGB pad background, or null for the default window background. */
     var bgColorArgb: Int? = null,
+    /** Placed widgets (Slice 15): sticks / D-pad / touchpad / gyro. */
+    val widgets: MutableList<PadWidgetSpec> = mutableListOf(),
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("id", id)
         .put("name", name)
         .put("buttons", JSONArray().also { arr -> buttons.forEach { arr.put(it.toJson()) } })
         .also { o -> bgColorArgb?.let { o.put("bg", it) } }
+        // "widgets" written only when present, so pre-Slice-15 layouts round-trip byte-identical.
+        .also { o ->
+            if (widgets.isNotEmpty()) {
+                o.put("widgets", JSONArray().also { arr -> widgets.forEach { arr.put(it.toJson()) } })
+            }
+        }
 
     /** A deep copy under a new id/name (layout-manager Duplicate). */
     fun duplicate(newId: String, newName: String): CustomLayout = CustomLayout(
@@ -136,6 +190,7 @@ data class CustomLayout(
         name = newName,
         buttons = buttons.map { it.copy() }.toMutableList(),
         bgColorArgb = bgColorArgb,
+        widgets = widgets.map { it.copy() }.toMutableList(),
     )
 
     /**
@@ -153,11 +208,20 @@ data class CustomLayout(
             val buttons = mutableListOf<PadButtonSpec>()
             val arr = o.getJSONArray("buttons")
             for (i in 0 until arr.length()) buttons.add(PadButtonSpec.fromJson(arr.getJSONObject(i)))
+            val widgets = mutableListOf<PadWidgetSpec>()
+            if (o.has("widgets")) {
+                val wArr = o.getJSONArray("widgets")
+                for (i in 0 until wArr.length()) {
+                    // A widget type from a newer version is skipped, never fatal.
+                    runCatching { widgets.add(PadWidgetSpec.fromJson(wArr.getJSONObject(i))) }
+                }
+            }
             return CustomLayout(
                 o.getString("id"),
                 o.getString("name"),
                 buttons,
                 bgColorArgb = if (o.has("bg")) o.getInt("bg") else null,
+                widgets = widgets,
             )
         }
 
@@ -171,26 +235,62 @@ data class CustomLayout(
             val o = JSONObject(raw.trim())
             val layoutObj = if (o.has("pcl")) o.getJSONObject("layout") else o
             val parsed = fromJson(layoutObj)
-            CustomLayout(newId, parsed.name, parsed.buttons, parsed.bgColorArgb)
+            CustomLayout(newId, parsed.name, parsed.buttons, parsed.bgColorArgb, parsed.widgets)
         }.getOrNull()
 
-        /** A starter template (GBA-ish core) the editor seeds new layouts from. */
-        fun template(id: String, name: String): CustomLayout = CustomLayout(
-            id = id,
-            name = name,
-            buttons = mutableListOf(
-                PadButtonSpec(0.05f, 0.22f, 0.12f, 0.20f, "▲", PadAction(PadActionType.DPAD, "UP")),
-                PadButtonSpec(0.05f, 0.62f, 0.12f, 0.20f, "▼", PadAction(PadActionType.DPAD, "DOWN")),
-                PadButtonSpec(0.00f, 0.42f, 0.11f, 0.20f, "◀", PadAction(PadActionType.DPAD, "LEFT")),
-                PadButtonSpec(0.11f, 0.42f, 0.11f, 0.20f, "▶", PadAction(PadActionType.DPAD, "RIGHT")),
-                PadButtonSpec(0.86f, 0.30f, 0.13f, 0.22f, "A", PadAction(PadActionType.GAMEPAD, "A")),
-                PadButtonSpec(0.72f, 0.52f, 0.13f, 0.22f, "B", PadAction(PadActionType.GAMEPAD, "B")),
-                PadButtonSpec(0.30f, 0.84f, 0.18f, 0.14f, "SELECT", PadAction(PadActionType.GAMEPAD, "SELECT")),
-                PadButtonSpec(0.52f, 0.84f, 0.18f, 0.14f, "START", PadAction(PadActionType.GAMEPAD, "START")),
-                PadButtonSpec(0.00f, 0.00f, 0.16f, 0.13f, "L", PadAction(PadActionType.GAMEPAD, "L1")),
-                PadButtonSpec(0.84f, 0.00f, 0.16f, 0.13f, "R", PadAction(PadActionType.GAMEPAD, "R1")),
-            ),
-        )
+        private fun gp(x: Float, y: Float, w: Float, h: Float, label: String, code: String) =
+            PadButtonSpec(x, y, w, h, label, PadAction(PadActionType.GAMEPAD, code))
+
+        /** Starter templates offered when creating a new layout (Slice 15). */
+        fun templateKinds(): List<String> = listOf("Blank", "GBA", "Full gamepad", "Analog + sticks")
+
+        fun template(id: String, name: String, kind: String = "GBA"): CustomLayout = when (kind) {
+            "Blank" -> CustomLayout(id, name, mutableListOf())
+            "Full gamepad" -> CustomLayout(
+                id, name,
+                mutableListOf(
+                    gp(0.02f, 0.00f, 0.16f, 0.13f, "L1", "L1"),
+                    gp(0.82f, 0.00f, 0.16f, 0.13f, "R1", "R1"),
+                    gp(0.90f, 0.32f, 0.10f, 0.17f, "A", "A"),
+                    gp(0.78f, 0.20f, 0.10f, 0.17f, "B", "B"),
+                    gp(0.66f, 0.32f, 0.10f, 0.17f, "X", "X"),
+                    gp(0.78f, 0.44f, 0.10f, 0.17f, "Y", "Y"),
+                    gp(0.34f, 0.84f, 0.14f, 0.14f, "SELECT", "SELECT"),
+                    gp(0.52f, 0.84f, 0.14f, 0.14f, "START", "START"),
+                ),
+                widgets = mutableListOf(PadWidgetSpec(PadWidgetType.DPAD, 0.02f, 0.28f, 0.30f, 0.44f)),
+            )
+            "Analog + sticks" -> CustomLayout(
+                id, name,
+                mutableListOf(
+                    gp(0.44f, 0.06f, 0.12f, 0.16f, "Y", "Y"),
+                    gp(0.36f, 0.24f, 0.12f, 0.16f, "X", "X"),
+                    gp(0.52f, 0.24f, 0.12f, 0.16f, "B", "B"),
+                    gp(0.44f, 0.42f, 0.12f, 0.16f, "A", "A"),
+                    gp(0.02f, 0.00f, 0.15f, 0.12f, "L1", "L1"),
+                    gp(0.83f, 0.00f, 0.15f, 0.12f, "R1", "R1"),
+                    gp(0.34f, 0.86f, 0.14f, 0.12f, "SELECT", "SELECT"),
+                    gp(0.52f, 0.86f, 0.14f, 0.12f, "START", "START"),
+                ),
+                widgets = mutableListOf(
+                    PadWidgetSpec(PadWidgetType.LEFT_STICK, 0.02f, 0.42f, 0.28f, 0.5f),
+                    PadWidgetSpec(PadWidgetType.RIGHT_STICK, 0.70f, 0.42f, 0.28f, 0.5f),
+                    PadWidgetSpec(PadWidgetType.GYRO, 0.70f, 0.02f, 0.12f, 0.10f),
+                ),
+            )
+            else -> CustomLayout( // "GBA" (the original default core)
+                id, name,
+                mutableListOf(
+                    gp(0.86f, 0.30f, 0.13f, 0.22f, "A", "A"),
+                    gp(0.72f, 0.52f, 0.13f, 0.22f, "B", "B"),
+                    gp(0.30f, 0.84f, 0.18f, 0.14f, "SELECT", "SELECT"),
+                    gp(0.52f, 0.84f, 0.18f, 0.14f, "START", "START"),
+                    gp(0.00f, 0.00f, 0.16f, 0.13f, "L", "L1"),
+                    gp(0.84f, 0.00f, 0.16f, 0.13f, "R", "R1"),
+                ),
+                widgets = mutableListOf(PadWidgetSpec(PadWidgetType.DPAD, 0.00f, 0.26f, 0.28f, 0.46f)),
+            )
+        }
     }
 }
 

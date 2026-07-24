@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 15: custom-layout widgets + starter templates (builder lane)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: fable-5 · high · feature build
 
@@ -58,4 +58,25 @@ via the saved pipeline; gate green; CI green on PR; merge → tag
 
 ## Result
 
-_(fill on completion)_
+Shipped, all four blocks + the D-pad diagonals ask (owner added mid-slice).
+PadPositioned interface unifies button/widget drag; PadWidgetSpec (LEFT/RIGHT
+stick, DPAD, TOUCHPAD, GYRO) with backward-compatible JSON (widgets key only when
+present → v≤0.14 layouts byte-identical); duplicate + fromShareString carry widgets.
+CustomPadView renders live widget views in play (Stick/Dpad/Touchpad/gyro-button
+wired to host + gyroToggle) and labelled placeholders in edit; generalized EditTouch
+moves either kind. New DpadView: 8-way, angle-sectored, diagonals press two
+directions (hat combines → true diagonal), glide via diff — used BOTH as the DPAD
+widget AND as the built-in pads' D-pad (dpadGrid now returns DpadView, so Full
+gamepad/GBA/NDS get diagonals). Editor: +Stick/D-pad… tool + widget config
+(type/size/delete). New-layout flow picks a template (Blank/GBA/Full gamepad/
+Analog+sticks) — the practical "customise a preset" answer.
+
+Guard recipes: widgets consume own touches so they coexist with the button
+SlidePadRouter (default motion-event splitting, same pattern the Analog pad already
+relied on); widget JSON is fail-soft (unknown type skipped, never fatal); gyro
+widget reuses the Slice-14 arm/recenter path; sticks reuse existing leftStick/
+rightStick transport calls → wire format untouched.
+
+hid-core 59/59 (unchanged); app vs android.jar 90 classes. v0.15.0 (versionCode 13),
+stable-signed, no HID descriptor change → installs in place, no re-pair. PR/tag/
+release: control/status.md heartbeat.

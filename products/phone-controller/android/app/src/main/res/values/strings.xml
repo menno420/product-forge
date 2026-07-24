@@ -113,6 +113,14 @@
     <string name="layout_rename">Rename</string>
     <string name="layout_delete">Delete</string>
     <string name="editor_add">+ Button</string>
+    <string name="editor_add_widget">+ Stick / D-pad…</string>
+    <string name="editor_change_type">Change type…</string>
+    <string name="new_layout_template">Start from…</string>
+    <string name="widget_left_stick">Left stick</string>
+    <string name="widget_right_stick">Right stick</string>
+    <string name="widget_dpad">D-pad (8-way)</string>
+    <string name="widget_touchpad">Touchpad</string>
+    <string name="widget_gyro">Gyro toggle</string>
     <string name="editor_hint_move">Help</string>
     <string name="editor_hint">Drag a button to move it · short-press a button to change its action, size, turbo, or label · Save when done.</string>
     <string name="editor_save">Save ✓</string>

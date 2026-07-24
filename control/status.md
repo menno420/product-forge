@@ -1,15 +1,20 @@
 # product-forge · status
 
-updated: 2026-07-24T18:31:32Z
-phase: phone-controller Slice 15 IN PROGRESS — custom-layout widgets (sticks/gyro/touchpad) + templates
+updated: 2026-07-24T18:38:19Z
+phase: phone-controller Slice 15 SHIPPED — custom-layout widgets (sticks/gyro/touchpad) + 8-way D-pad + templates (v0.15.0)
 lane: builder (phone-controller) · owner-live session 2026-07-23
 health: green
 
 ## This session (2026-07-23, owner-live directive)
-**Slice 15 in progress (2026-07-24):** owner field feedback (NDS on tablet) — presets
-not editable + custom layouts can't add sticks/gyro. Adding PadWidgetSpec
-(LEFT/RIGHT stick, touchpad, gyro) to CustomLayout, CustomPadView live+placeholder
-render, editor +Widget tool, starter templates (blank/GBA/gamepad/analog). Card:
+**Slice 15 SHIPPED (2026-07-24):** owner field feedback (NDS on tablet) — presets
+not editable + custom layouts can't add sticks/gyro + wanted D-pad diagonals.
+PadWidgetSpec (LEFT/RIGHT stick, DPAD, touchpad, gyro) + PadPositioned in
+CustomLayout (backward-compat JSON); CustomPadView live+placeholder widget render +
+generalized drag; new DpadView (8-way diagonals + glide) used as widget AND built-in
+D-pad (gamepad/GBA/NDS now diagonal); editor +Stick/D-pad tool + widget config;
+starter templates (Blank/GBA/Full gamepad/Analog+sticks). No descriptor change.
+v0.15.0 (versionCode 13). Verified pre-push: 59/59 JVM tests, app vs android.jar
+(90 classes). Card:
 `.sessions/2026-07-24-phone-controller-slice15-custom-widgets.md`.
 **Slice 14 SHIPPED (2026-07-24):** owner — gyro not obvious/uncustomizable.
 GyroDriver now emits normalized (nx,ny); host routes to selectable target (right
