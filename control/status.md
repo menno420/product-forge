@@ -1,11 +1,20 @@
 # product-forge · status
 
-updated: 2026-07-24T13:00:52Z
-phase: phone-controller Slice 12 SHIPPED — local-play overlay foundation (gesture core + accessibility + overlay tap/hold) (v0.12.0)
+updated: 2026-07-24T13:20:46Z
+phase: phone-controller Slice 13 SHIPPED — gesture recorder + GESTURE binding + gestures manager (v0.13.0)
 lane: builder (phone-controller) · owner-live session 2026-07-23
 health: green
 
 ## This session (2026-07-23, owner-live directive)
+**Slice 13 SHIPPED (2026-07-24):** OP-style recorder — TouchGestureCodec (hid-core,
++6 tests = 59/59), SavedGesture/GestureStore (prefs, fail-soft), full-screen
+GestureRecorderView (percent path + timing, sample thinning), PadActionType.GESTURE
+(inert in HID mode, excluded from macro/voice pickers) + editor Gesture picker
+(saved + Record new…), OverlayPlayService replays bound gesture per button,
+"Recorded gestures…" manager. Recorded swipe = multi-point stroke → Slice-12 model
+unchanged. No descriptor change. v0.13.0 (versionCode 11). Verified pre-push: 59/59
+JVM tests, app vs android.jar (79 classes). Card:
+`.sessions/2026-07-24-phone-controller-slice13-gesture-recorder.md`.
 **Slice 12 SHIPPED (2026-07-24):** owner greenlit the overlay (OP-Auto-Clicker
 framing) in structured order — hid-core TouchGesture+GestureGeometry (pure, +8
 CI tests = 53/53), TapAccessibilityService (inject-only, canRetrieveWindowContent

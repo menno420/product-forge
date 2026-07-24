@@ -43,6 +43,13 @@ enum class PadActionType {
      * "h":holdMs,"g":gapMs}, …]. Steps may be any type except MACRO (no nesting).
      */
     MACRO,
+
+    /**
+     * code = saved-gesture id (Slice 13). Meaningful only in Play-on-this-phone
+     * overlay mode, where the overlay replays the recorded touch on the game
+     * underneath; INERT in remote HID mode (a screen gesture has no remote meaning).
+     */
+    GESTURE,
 }
 
 data class PadAction(val type: PadActionType, val code: String)

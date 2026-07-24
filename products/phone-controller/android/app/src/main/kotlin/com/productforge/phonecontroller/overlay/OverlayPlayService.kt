@@ -40,6 +40,7 @@ import com.productforge.phonecontroller.hid.GestureGeometry
 import com.productforge.phonecontroller.hid.TouchGesture
 import com.productforge.phonecontroller.layout.CustomLayout
 import com.productforge.phonecontroller.layout.LayoutStore
+import com.productforge.phonecontroller.layout.PadActionType
 import com.productforge.phonecontroller.layout.PadButtonSpec
 import com.productforge.phonecontroller.ui.ButtonStyler
 
@@ -48,6 +49,7 @@ class OverlayPlayService : Service() {
     private lateinit var windowManager: WindowManager
     private val buttonViews = mutableListOf<View>()
     private var handleView: View? = null
+    private var gestureStore: GestureStore? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -64,6 +66,7 @@ class OverlayPlayService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        gestureStore = GestureStore(prefs())
         showButtons(layout)
         showHandle()
         return START_STICKY
@@ -122,6 +125,14 @@ class OverlayPlayService : Service() {
     private inner class TapDispatch(private val spec: PadButtonSpec) : View.OnTouchListener {
         private var downAt = 0L
 
+        // Resolved once at bind time: a GESTURE button's recorded path (or null).
+        private val boundGesture: TouchGesture? =
+            if (spec.action.type == PadActionType.GESTURE) {
+                gestureStore?.byId(spec.action.code)?.gesture()
+            } else {
+                null
+            }
+
         override fun onTouch(v: View, event: MotionEvent): Boolean {
             val cx = spec.xPct + spec.wPct / 2f
             val cy = spec.yPct + spec.hPct / 2f
@@ -134,14 +145,16 @@ class OverlayPlayService : Service() {
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     v.isPressed = false
                     val heldMs = SystemClock.uptimeMillis() - downAt
-                    val gesture = if (heldMs >= HOLD_MS) {
-                        TouchGesture.hold(cx, cy, heldMs.coerceAtMost(GestureGeometry.MAX_DURATION_MS))
-                    } else {
-                        TouchGesture.tap(cx, cy)
+                    val gesture = when {
+                        // A GESTURE button replays its recorded path verbatim (its
+                        // points are absolute screen percents from the recording).
+                        spec.action.type == PadActionType.GESTURE ->
+                            boundGesture ?: TouchGesture.tap(cx, cy)
+                        heldMs >= HOLD_MS ->
+                            TouchGesture.hold(cx, cy, heldMs.coerceAtMost(GestureGeometry.MAX_DURATION_MS))
+                        else -> TouchGesture.tap(cx, cy)
                     }
-                    if (!TapAccessibilityService.play(gesture)) {
-                        // Service dropped mid-session — nothing we can do but ignore.
-                    }
+                    TapAccessibilityService.play(gesture)
                     v.performClick()
                     return true
                 }

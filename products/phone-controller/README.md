@@ -18,7 +18,7 @@ target. Based on the Ideas-Lab plan
 
 ## State
 
-**beta · field-verified against a real host.** Slices 1–12 are built and CI-proven: the
+**beta · field-verified against a real host.** Slices 1–13 are built and CI-proven: the
 capability verdict engine (portable Python + lockstep Kotlin port), the real
 `BluetoothHidDevice` transport, a **combo HID device** (keyboard + gamepad + mouse +
 media remote), the controller UI (ten built-in layouts + a full custom-layout
@@ -141,8 +141,15 @@ move it; tap it or the notification to stop.
 
 The accessibility service is used **only to send taps you trigger — it never reads
 your screen** (`canRetrieveWindowContent=false`). This is the same mechanism
-auto-clickers and gamepad-mappers use. Best for taps and holds; recorded swipe
-gestures are on the roadmap, and competitive online games are not supported.
+auto-clickers and gamepad-mappers use. Competitive online games are not supported.
+
+**Recorded gestures (swipes & combos).** A button can replay a gesture you record
+once. In the layout editor, set a button's action to **Gesture → Record new…**,
+then perform the swipe/tap (or several in a row) on the full-screen recorder and
+name it — pressing that button in overlay mode replays it on the game. Manage saved
+gestures under **Settings → Recorded gestures…** (rename / delete / record). The
+recorder captures the path in screen-percent with real timing, so a saved gesture
+plays back at the same spot and speed on any screen size.
 
 ## Run (portable verdict core — no phone needed)
 

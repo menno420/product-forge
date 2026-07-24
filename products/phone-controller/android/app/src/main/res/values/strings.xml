@@ -196,6 +196,19 @@
     <string name="overlay_notif_title">Overlay controls active</string>
     <string name="overlay_notif_text">Your buttons are floating over other apps. Tap Stop to end.</string>
 
+    <!-- Gesture recorder (Slice 13) -->
+    <string name="gestures_title">Recorded gestures…</string>
+    <string name="gesture_pick">Gesture to play</string>
+    <string name="gesture_record_new">Record new…</string>
+    <string name="gesture_record_hint">Perform the gesture here (swipe, tap, or several in a row). Lift to finish a stroke. Then Save.</string>
+    <string name="gesture_retry">Retry</string>
+    <string name="gesture_save">Save</string>
+    <string name="gesture_empty">Nothing recorded yet — draw the gesture first.</string>
+    <string name="gesture_name_prompt">Name this gesture</string>
+    <string name="gesture_default_name">Gesture</string>
+    <!-- %1$s = name, %2$d = duration in ms. -->
+    <string name="gesture_row_fmt">%1$s · %2$d ms</string>
+
     <!-- About & Support (the fairness promise) -->
     <string name="about_title">About &amp; Support…</string>
     <string name="fairness_promise">Phone Controller is complete for free: every key, every pad, the full editor. No ads. No subscriptions. Ever.\n\nA one-time supporter pack (≈€1, cosmetic button styles only) will exist once the app reaches the Play Store — until then, preview the styles below for free.</string>
