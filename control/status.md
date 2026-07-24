@@ -1,11 +1,17 @@
 # product-forge · status
 
-updated: 2026-07-24T13:20:46Z
-phase: phone-controller Slice 13 SHIPPED — gesture recorder + GESTURE binding + gestures manager (v0.13.0)
+updated: 2026-07-24T13:55:08Z
+phase: phone-controller Slice 14 IN PROGRESS — gyro upgrade (selectable target, live visualizer, recenter)
 lane: builder (phone-controller) · owner-live session 2026-07-23
 health: green
 
 ## This session (2026-07-23, owner-live directive)
+**Slice 14 in progress (2026-07-24):** owner — gyro not obvious what it drives; wants
+gyro linked to a chosen input + visible + settable neutral. GyroDriver emits
+normalized (nx,ny); selectable target (right/left stick, mouse-rate); GyroVisualizerView
+live preview; recenter (dialog button + Analog-pad long-press); sensitivity + invert;
+Settings → Gyro… dialog. Card:
+`.sessions/2026-07-24-phone-controller-slice14-gyro-target-visualizer.md`.
 **Slice 13 SHIPPED (2026-07-24):** OP-style recorder — TouchGestureCodec (hid-core,
 +6 tests = 59/59), SavedGesture/GestureStore (prefs, fail-soft), full-screen
 GestureRecorderView (percent path + timing, sample thinning), PadActionType.GESTURE
