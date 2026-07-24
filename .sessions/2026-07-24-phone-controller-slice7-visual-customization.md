@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 7: visual customization (colors, shapes, finer sizing) (builder lane)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: fable-5 · high · feature build
 
@@ -60,3 +60,11 @@ gradle :capability-core:test :hid-core:test   # unchanged (38 tests)
 gradle :app:assembleDebug
 python3 bootstrap.py check --strict
 ```
+
+## Verify — results (run locally pre-push; CI re-proves on the canonical Gradle lanes)
+
+- hid-core untouched — the 38/38 JVM suite from Slice 6 remains the wire-format proof.
+- **App module compiles against android.jar** (platform-34): ButtonStyler, extended
+  model/JSON (backward-compatible optionals), styled CustomPadView, upgraded dialogs,
+  tinted built-in diamonds — 48 classes, zero errors.
+- `python3 bootstrap.py check --strict` green at flip.

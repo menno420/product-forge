@@ -54,6 +54,8 @@ import com.productforge.phonecontroller.layout.LayoutStore
 import com.productforge.phonecontroller.layout.PadAction
 import com.productforge.phonecontroller.layout.PadActionType
 import com.productforge.phonecontroller.layout.PadButtonSpec
+import com.productforge.phonecontroller.layout.PadShape
+import com.productforge.phonecontroller.ui.ButtonStyler
 import com.productforge.phonecontroller.transport.BluetoothHidDeviceTransport
 import com.productforge.phonecontroller.transport.HidTransportListener
 import com.productforge.phonecontroller.ui.ControllerPads
@@ -459,6 +461,8 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         val options = arrayOf(
             getString(R.string.layout_use),
             getString(R.string.layout_edit),
+            getString(R.string.layout_background),
+            getString(R.string.layout_duplicate),
             getString(R.string.layout_rename),
             getString(R.string.layout_delete),
         )
@@ -471,12 +475,28 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                         rebuildSpinnerSelection()
                     }
                     1 -> startEditor(layout)
-                    2 -> promptText(getString(R.string.layout_rename), layout.name) { name ->
+                    2 -> AlertDialog.Builder(this)
+                        .setTitle(R.string.layout_background)
+                        .setItems(ButtonStyler.PAD_BACKGROUNDS.map { it.first }.toTypedArray()) { _, bg ->
+                            layout.bgColorArgb = ButtonStyler.PAD_BACKGROUNDS[bg].second
+                            layoutStore.save(layout)
+                            if (currentSelection == "c:${layout.id}") showSelection(currentSelection)
+                        }
+                        .show()
+                    3 -> {
+                        val copy = layout.duplicate(
+                            "cl_${System.currentTimeMillis()}",
+                            getString(R.string.layout_copy_name_fmt, layout.name),
+                        )
+                        layoutStore.save(copy)
+                        rebuildSpinnerSelection()
+                    }
+                    4 -> promptText(getString(R.string.layout_rename), layout.name) { name ->
                         layout.name = name.ifBlank { layout.name }
                         layoutStore.save(layout)
                         rebuildSpinnerSelection()
                     }
-                    3 -> {
+                    5 -> {
                         layoutStore.delete(layout.id)
                         if (currentSelection == "c:${layout.id}") showSelection("b:0")
                         rebuildSpinnerSelection()
@@ -550,7 +570,12 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             getString(R.string.editor_change_action),
             getString(turboLabel),
             getString(R.string.editor_size),
+            getString(R.string.editor_color),
+            getString(R.string.editor_shape),
+            getString(R.string.editor_opacity),
+            getString(R.string.editor_text_size),
             getString(R.string.editor_label),
+            getString(R.string.editor_duplicate),
             getString(R.string.editor_delete),
         )
         AlertDialog.Builder(this)
@@ -563,11 +588,21 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                         editingView?.rebuild()
                     }
                     2 -> pickSize(spec)
-                    3 -> promptText(getString(R.string.editor_label), spec.label) { text ->
+                    3 -> pickColor(spec)
+                    4 -> pickShape(spec)
+                    5 -> pickOpacity(spec)
+                    6 -> pickTextSize(spec)
+                    7 -> promptText(getString(R.string.editor_label), spec.label) { text ->
                         spec.label = text.ifBlank { spec.label }
                         editingView?.rebuild()
                     }
-                    4 -> {
+                    8 -> {
+                        val copy = spec.copy(xPct = spec.xPct + 0.05f, yPct = spec.yPct + 0.05f)
+                        copy.clampToPad()
+                        layout.buttons.add(copy)
+                        editingView?.rebuild()
+                    }
+                    9 -> {
                         layout.buttons.remove(spec)
                         editingView?.rebuild()
                     }
@@ -576,20 +611,87 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             .show()
     }
 
+    /** S–XL presets + 2% width/height steppers (fine control past the presets). */
     private fun pickSize(spec: PadButtonSpec) {
-        val names = arrayOf("S", "M", "L", "XL")
-        val sizes = arrayOf(
-            0.10f to 0.14f,
-            0.14f to 0.18f,
-            0.18f to 0.24f,
-            0.24f to 0.30f,
+        val presets = arrayOf(
+            "S" to (0.10f to 0.14f),
+            "M" to (0.14f to 0.18f),
+            "L" to (0.18f to 0.24f),
+            "XL" to (0.24f to 0.30f),
+        )
+        val items = presets.map { it.first } + listOf(
+            getString(R.string.size_wider), getString(R.string.size_narrower),
+            getString(R.string.size_taller), getString(R.string.size_shorter),
         )
         AlertDialog.Builder(this)
             .setTitle(R.string.editor_size)
-            .setItems(names) { _, which ->
-                spec.wPct = sizes[which].first
-                spec.hPct = sizes[which].second
+            .setItems(items.toTypedArray()) { _, which ->
+                when {
+                    which < presets.size -> {
+                        spec.wPct = presets[which].second.first
+                        spec.hPct = presets[which].second.second
+                    }
+                    which == presets.size -> spec.wPct += 0.02f
+                    which == presets.size + 1 -> spec.wPct -= 0.02f
+                    which == presets.size + 2 -> spec.hPct += 0.02f
+                    else -> spec.hPct -= 0.02f
+                }
                 spec.clampToPad()
+                editingView?.rebuild()
+            }
+            .show()
+    }
+
+    private fun pickColor(spec: PadButtonSpec) {
+        val names = listOf(getString(R.string.color_default)) + ButtonStyler.PALETTE.map { it.first }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.editor_color)
+            .setItems(names.toTypedArray()) { _, which ->
+                spec.colorArgb = if (which == 0) {
+                    null
+                } else {
+                    val base = ButtonStyler.PALETTE[which - 1].second
+                    // Preserve the current opacity choice when recoloring.
+                    val alpha = spec.colorArgb?.ushr(24) ?: 0xFF
+                    ButtonStyler.withAlpha(base, alpha)
+                }
+                editingView?.rebuild()
+            }
+            .show()
+    }
+
+    private fun pickShape(spec: PadButtonSpec) {
+        val shapes = PadShape.entries
+        AlertDialog.Builder(this)
+            .setTitle(R.string.editor_shape)
+            .setItems(shapes.map { it.name }.toTypedArray()) { _, which ->
+                spec.shape = shapes[which]
+                editingView?.rebuild()
+            }
+            .show()
+    }
+
+    private fun pickOpacity(spec: PadButtonSpec) {
+        val current = spec.colorArgb
+        if (current == null) {
+            setDetail(getString(R.string.opacity_needs_color))
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.editor_opacity)
+            .setItems(ButtonStyler.OPACITY.map { it.first }.toTypedArray()) { _, which ->
+                spec.colorArgb = ButtonStyler.withAlpha(current, ButtonStyler.OPACITY[which].second)
+                editingView?.rebuild()
+            }
+            .show()
+    }
+
+    private fun pickTextSize(spec: PadButtonSpec) {
+        val sizes = listOf("S" to 11, "M" to 14, "L" to 18, "XL" to 22)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.editor_text_size)
+            .setItems(sizes.map { it.first }.toTypedArray()) { _, which ->
+                spec.textSizeSp = sizes[which].second
                 editingView?.rebuild()
             }
             .show()

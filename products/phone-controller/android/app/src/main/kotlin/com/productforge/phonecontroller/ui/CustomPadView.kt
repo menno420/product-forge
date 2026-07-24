@@ -40,15 +40,16 @@ class CustomPadView(
     fun rebuild() {
         removeAllViews()
         buttonViews.clear()
+        setBackgroundColor(layout.bgColorArgb ?: 0x00000000)
         val actions = LinkedHashMap<Button, (Boolean) -> Unit>()
         for (spec in layout.buttons) {
             val button = Button(context).apply {
                 text = if (spec.turbo) "${spec.label} ⚡" else spec.label
                 isAllCaps = false
-                textSize = 14f
                 isClickable = false
                 isFocusable = false
             }
+            ButtonStyler.apply(button, spec, 0)
             buttonViews[button] = spec
             if (!editMode) {
                 actions[button] = turbo.wrap(button, spec.turbo, actionResolver(spec))
@@ -67,6 +68,8 @@ class CustomPadView(
             val bh = (spec.hPct * h).toInt()
             val bx = (spec.xPct * w).toInt()
             val by = (spec.yPct * h).toInt()
+            // Re-apply with the real height so corner radii (pill/rounded) track size.
+            ButtonStyler.apply(button, spec, bh)
             button.measure(
                 MeasureSpec.makeMeasureSpec(bw, MeasureSpec.EXACTLY),
                 MeasureSpec.makeMeasureSpec(bh, MeasureSpec.EXACTLY),

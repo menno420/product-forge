@@ -60,10 +60,12 @@ browser/files app when prompted (normal sideload flow — this app is not on a s
    - **Analog sticks** — two real thumbsticks (left = X/Y, right = Z/RZ, deadzone
      configurable in Settings), face buttons, L1/L2/R2/R1, and a **Gyro** toggle
      that maps phone tilt onto the right stick (aiming / steering).
-   - **Your own layouts** — Settings → *Layouts…* → New: drag buttons anywhere,
-     resize them, assign any action (gamepad / D-pad / keys / modifiers / media /
-     mouse), flag per-button **turbo ⚡** (10 Hz auto-fire), rename, save. Custom
-     layouts join this spinner.
+   - **Your own layouts** — Settings → *Layouts…* → New: drag buttons anywhere;
+     size presets + fine width/height steppers; assign any action (gamepad / D-pad /
+     keys / modifiers / media / mouse); per-button **color** (16-swatch palette,
+     auto-contrast text), **shape** (rounded / circle / pill / square), **opacity**,
+     **text size**, **turbo ⚡** (10 Hz); duplicate buttons or whole layouts; pick a
+     pad **background** (incl. OLED black). Custom layouts join this spinner.
    - **Touchpad** — drag to move the host's pointer (on an Android target a system
      cursor appears), tap = click, two-finger tap = right-click, two-finger drag =
      scroll (natural direction), hold LEFT + drag = drag-select; speed slider below.

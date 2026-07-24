@@ -74,6 +74,21 @@
     <string name="editor_turbo_on">Turbo: enable ⚡</string>
     <string name="editor_turbo_off">Turbo: disable</string>
     <string name="editor_size">Size…</string>
+    <string name="editor_color">Color…</string>
+    <string name="editor_shape">Shape…</string>
+    <string name="editor_opacity">Opacity…</string>
+    <string name="editor_text_size">Text size…</string>
     <string name="editor_label">Label…</string>
+    <string name="editor_duplicate">Duplicate button</string>
     <string name="editor_delete">Delete button</string>
+    <string name="color_default">Default</string>
+    <string name="opacity_needs_color">Pick a color first — opacity applies to colored buttons.</string>
+    <string name="size_wider">Wider +</string>
+    <string name="size_narrower">Narrower −</string>
+    <string name="size_taller">Taller +</string>
+    <string name="size_shorter">Shorter −</string>
+    <string name="layout_background">Background…</string>
+    <string name="layout_duplicate">Duplicate</string>
+    <!-- %1$s = source layout name. -->
+    <string name="layout_copy_name_fmt">%1$s (copy)</string>
 </resources>
