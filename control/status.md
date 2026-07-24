@@ -1,11 +1,16 @@
 # product-forge · status
 
-updated: 2026-07-24T09:16:53Z
-phase: phone-controller Slice 9 SHIPPED — send-text+voice, combo shortcuts deck, presenter pad, host switch, supporter groundwork (v0.9.0)
+updated: 2026-07-24T10:31:55Z
+phase: phone-controller Slice 10 IN PROGRESS — layout sharing, volume-key triggers, macros, turbo rate, scroll invert
 lane: builder (phone-controller) · owner-live session 2026-07-23
 health: green
 
 ## This session (2026-07-23, owner-live directive)
+**Slice 10 in progress (2026-07-24):** owner "continue building the most valuable
+pieces" — layout Share/Import (versioned JSON envelope, share sheet + paste),
+volume buttons as trigger pairs, MACRO action type + runner + builder dialog,
+turbo rate 5-20 Hz, scroll invert. No descriptor change. Card:
+`.sessions/2026-07-24-phone-controller-slice10-share-volume-macros.md`.
 **Slice 9 SHIPPED (2026-07-24):** owner-approved brainstorm + fair-IAP groundwork —
 send-text dialog (phone IME incl. voice dictation → HID keystrokes; new KeyChars
 map in hid-core, full printable-ASCII, tested), COMBO action type ("mask:usage") +
