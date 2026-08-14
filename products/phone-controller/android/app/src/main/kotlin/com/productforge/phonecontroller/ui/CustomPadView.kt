@@ -26,6 +26,7 @@ import android.widget.TextView
 import com.productforge.phonecontroller.R
 import com.productforge.phonecontroller.hid.MouseButton
 import com.productforge.phonecontroller.layout.CustomLayout
+import com.productforge.phonecontroller.layout.PadAction
 import com.productforge.phonecontroller.layout.PadButtonSpec
 import com.productforge.phonecontroller.layout.PadPositioned
 import com.productforge.phonecontroller.layout.PadWidgetSpec
@@ -42,6 +43,12 @@ class CustomPadView(
     private val gyro: GyroToggle? = null,
     private val deadzonePct: Float = 0.08f,
     private val onEditWidget: ((PadWidgetSpec) -> Unit)? = null,
+    /** Global touchpad tuning; per-widget overrides win where set (Slice 18). */
+    private val touchpad: TouchpadConfig? = null,
+    /** Resolver for a button's long-press alternate action (Slice 18). */
+    private val altResolver: ((PadAction) -> (Boolean) -> Unit)? = null,
+    /** Hold time before a long-press alternate engages, from Settings. */
+    private val altHoldMs: Long = 350L,
 ) : FrameLayout(context) {
 
     private val buttonViews = LinkedHashMap<Button, PadButtonSpec>()
@@ -63,8 +70,13 @@ class CustomPadView(
         setBackgroundColor(layout.bgColorArgb ?: 0x00000000)
 
         for (spec in layout.buttons) {
+            val alt = spec.altAction // read once — dialogs mutate the spec live
             val button = Button(context).apply {
-                text = if (spec.turbo) "${spec.label} ⚡" else spec.label
+                text = buildString {
+                    append(spec.label)
+                    if (spec.turbo && alt == null) append(" ⚡")
+                    if (alt != null) append(" ⏱")
+                }
                 isAllCaps = false
             }
             ButtonStyler.apply(button, spec, 0)
@@ -72,8 +84,16 @@ class CustomPadView(
             editSpecs[button] = spec
             if (!editMode) {
                 // Each button consumes its own touch → 4+ simultaneous inputs (Slice 16).
-                val action = turbo.wrap(button, spec.turbo, actionResolver(spec))
-                button.setOnTouchListener(HoldTouch(action))
+                // An alternate replaces turbo (mutually exclusive; editor enforces —
+                // this branch decides deterministically for imported layouts).
+                if (alt != null && altResolver != null) {
+                    button.setOnTouchListener(
+                        HoldTouch(actionResolver(spec), altResolver.invoke(alt), altHoldMs),
+                    )
+                } else {
+                    val action = turbo.wrap(button, spec.turbo, actionResolver(spec))
+                    button.setOnTouchListener(HoldTouch(action))
+                }
             } else {
                 button.isClickable = false
                 button.isFocusable = false
@@ -94,20 +114,67 @@ class CustomPadView(
         requestLayout()
     }
 
-    /** Per-button consuming press/release (play mode) — the multi-touch-safe path. */
-    private inner class HoldTouch(private val action: (Boolean) -> Unit) : OnTouchListener {
+    /**
+     * Per-button consuming press/release (play mode) — the multi-touch-safe path.
+     *
+     * Without an [altAction] this is the classic hold: press on finger-down, release
+     * on finger-up. With one (Slice 18), the button carries two inputs: a quick tap
+     * fires the primary as a press+release pair, and holding past [holdMs] engages
+     * the alternate (held until finger-up). The primary therefore fires on RELEASE
+     * for alt-carrying buttons — the unavoidable price of overloading one surface,
+     * which is why alternates are per-button opt-in.
+     */
+    private inner class HoldTouch(
+        private val action: (Boolean) -> Unit,
+        private val altAction: ((Boolean) -> Unit)? = null,
+        private val holdMs: Long = 0L,
+    ) : OnTouchListener {
+
+        private var altEngaged = false
+        private var pendingEngage: Runnable? = null
+
         @SuppressLint("ClickableViewAccessibility")
         override fun onTouch(v: View, event: MotionEvent): Boolean {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     v.isPressed = true
                     Haptics.tick(v)
-                    action(true)
+                    if (altAction == null) {
+                        action(true)
+                    } else {
+                        altEngaged = false
+                        val engage = Runnable {
+                            // The pad may have been switched away mid-hold; a detached
+                            // view must never start a held input nothing will release.
+                            if (v.isAttachedToWindow) {
+                                altEngaged = true
+                                Haptics.tick(v)
+                                altAction.invoke(true)
+                            }
+                        }
+                        pendingEngage = engage
+                        v.postDelayed(engage, holdMs)
+                    }
                     return true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     v.isPressed = false
-                    action(false)
+                    if (altAction == null) {
+                        action(false)
+                    } else {
+                        pendingEngage?.let(v::removeCallbacks)
+                        pendingEngage = null
+                        if (altEngaged) {
+                            altEngaged = false
+                            altAction.invoke(false)
+                        } else if (event.actionMasked == MotionEvent.ACTION_UP) {
+                            // Quick tap: primary as a press+release pair. The release
+                            // rides a short delay so the host registers the report
+                            // transition (same shape as voice-command taps).
+                            action(true)
+                            v.postDelayed({ action(false) }, TAP_FIRE_MS)
+                        }
+                    }
                     v.performClick()
                     return true
                 }
@@ -116,15 +183,21 @@ class CustomPadView(
         }
     }
 
-    /** The live interactive view for a widget (play mode). */
+    /** The live interactive view for a widget (play mode), per-widget config applied. */
     @SuppressLint("ClickableViewAccessibility")
     private fun widgetView(spec: PadWidgetSpec): View = when (spec.type) {
         PadWidgetType.LEFT_STICK ->
-            StickView(context) { x, y -> host?.onLeftStick(x, y) }.apply { deadzonePct = this@CustomPadView.deadzonePct }
+            StickView(context) { x, y -> host?.onLeftStick(x, y) }.apply {
+                deadzonePct = spec.deadzonePct ?: this@CustomPadView.deadzonePct
+                invertY = spec.invertY
+            }
         PadWidgetType.RIGHT_STICK ->
-            StickView(context) { z, rz -> host?.onRightStick(z, rz) }.apply { deadzonePct = this@CustomPadView.deadzonePct }
+            StickView(context) { z, rz -> host?.onRightStick(z, rz) }.apply {
+                deadzonePct = spec.deadzonePct ?: this@CustomPadView.deadzonePct
+                invertY = spec.invertY
+            }
         PadWidgetType.DPAD ->
-            DpadView(context) { d, down -> host?.onDpad(d, down) }
+            DpadView(context) { d, down -> host?.onDpad(d, down) }.apply { fourWay = spec.fourWay }
         PadWidgetType.TOUCHPAD ->
             TouchpadView(
                 context,
@@ -132,8 +205,15 @@ class CustomPadView(
                     override fun onMove(dx: Int, dy: Int) { host?.onMouseMove(dx, dy) }
                     override fun onScroll(notches: Int) { host?.onMouseScroll(notches) }
                     override fun onTap(button: MouseButton) { host?.onMouseClick(button) }
+                    override fun onPen(down: Boolean) { host?.onMouseButton(MouseButton.LEFT, down) }
                 },
-            )
+            ).apply {
+                // Global Settings apply (they previously never reached custom-layout
+                // touchpads at all — fixed in Slice 18); per-widget overrides win.
+                sensitivity = spec.speedPct?.let { it / 100f } ?: touchpad?.sensitivity ?: 1.0f
+                invertScroll = touchpad?.invertScroll ?: false
+                penMode = spec.penMode
+            }
         PadWidgetType.GYRO -> Button(context).apply {
             isAllCaps = false
             fun label() = if (gyro?.running == true) context.getString(R.string.gyro_on) else context.getString(R.string.gyro_off)
@@ -261,5 +341,8 @@ class CustomPadView(
 
     private companion object {
         const val TAP_MS = 300L
+
+        /** Press→release gap for an alt-button's quick-tap primary fire. */
+        const val TAP_FIRE_MS = 60L
     }
 }

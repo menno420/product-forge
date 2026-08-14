@@ -21,6 +21,10 @@
 - PROPOSAL · one-writer-per-product convention · at most one live session holds the write-lock on a `products/<slug>/` subtree at a time (the PR #4/#5 overlap was a latent conflict). Manager to ratify into CONVENTIONS.md if accepted — not edited directly this slice.
 - PROPOSAL · card-marker preflight before push · run `bootstrap.py check --strict` against the session's own card in run.sh/pre-push to kill marker-typo PR reds (see retro idea section).
 
+## 2026-08-14
+
+- PR #49 · phone-controller Slice 18 (v0.18.0) · **reviewed pre-merge after all** — Codex answered ~9.6 min after PR-open (first-ever review in this repo; slower than fm's measured 335 s), 5 findings, 5 conceded and fixed before merge. An earlier revision of this entry claimed the app was not installed here; wrong — 0 historical comments meant *never used*, not *not installed*. No re-check owed; kept as the correction record.
+
 ## Owner actions
 
 - OA-003 · enable GitHub Pages (Settings → Pages → Source: GitHub Actions) so the deploy workflow can publish products/games-web at https://menno420.github.io/product-forge/ · verify by visiting the URL after the next main push.

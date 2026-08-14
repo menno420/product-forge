@@ -122,7 +122,7 @@
     <string name="widget_touchpad">Touchpad</string>
     <string name="widget_gyro">Gyro toggle</string>
     <string name="editor_hint_move">Help</string>
-    <string name="editor_hint">Drag a button to move it · short-press a button to change its action, size, turbo, or label · Save when done.</string>
+    <string name="editor_hint">Drag a button to move it · short-press a button or widget to configure it (action, long-press action, size, position, turbo, label — sticks/D-pad/touchpad have their own behavior options) · Save when done.</string>
     <string name="editor_save">Save ✓</string>
     <string name="editor_change_action">Change action…</string>
     <string name="editor_turbo_on">Turbo: enable ⚡</string>
@@ -242,6 +242,46 @@
     <string name="gesture_default_name">Gesture</string>
     <!-- %1$s = name, %2$d = duration in ms. -->
     <string name="gesture_row_fmt">%1$s · %2$d ms</string>
+
+    <!-- Deeper customization (Slice 18) -->
+    <string name="editor_position">Position…</string>
+    <!-- %1$s = percent, e.g. "24%". -->
+    <string name="pos_x_fmt">Horizontal: %1$s (left → right)</string>
+    <string name="pos_y_fmt">Vertical: %1$s (top → bottom)</string>
+    <string name="editor_alt_set">Long-press action: set… ⏱</string>
+    <string name="editor_alt_change">Long-press action: change… ⏱</string>
+    <string name="editor_alt_remove">Long-press action: remove</string>
+    <!-- %1$s = chosen action label. -->
+    <string name="alt_set_fmt">Long-press action set: %1$s. Tap = main action, hold = this one.</string>
+    <string name="alt_removed">Long-press action removed — the button holds classically again.</string>
+    <string name="alt_no_turbo">Turbo and a long-press action can’t share a button — remove one first.</string>
+    <string name="alt_no_macro">A macro can’t carry a long-press action — its own timing runs the show.</string>
+    <!-- %1$d = milliseconds. -->
+    <string name="settings_alt_hold_fmt">Long-press hold time: %1$d ms</string>
+    <string name="widget_global">global</string>
+    <!-- %1$s = current value or "global". -->
+    <string name="widget_deadzone_fmt">Deadzone: %1$s</string>
+    <string name="widget_deadzone_title">Stick deadzone (this stick)</string>
+    <string name="widget_invert_y_on">Invert vertical: enable (flight-style)</string>
+    <string name="widget_invert_y_off">Invert vertical: disable</string>
+    <string name="widget_diagonals_off">Diagonals: disable (4-way)</string>
+    <string name="widget_diagonals_on">Diagonals: enable (8-way)</string>
+    <!-- %1$s = current value or "global". -->
+    <string name="widget_speed_fmt">Pointer speed: %1$s</string>
+    <string name="widget_speed_title">Touchpad speed (this touchpad)</string>
+    <string name="widget_pen_on">Pen mode: enable (contact draws)</string>
+    <string name="widget_pen_off">Pen mode: disable</string>
+    <string name="widget_use_global">Use global</string>
+    <string name="backup_title">Backup everything…</string>
+    <!-- %1$d = layout count. -->
+    <string name="backup_done_fmt">Backup copied to clipboard and offered to share (%1$d layouts + gestures, voice, settings). Keep it somewhere safe.</string>
+    <string name="restore_title">Restore backup…</string>
+    <string name="restore_hint">Paste a full backup here</string>
+    <string name="restore_go">Restore</string>
+    <string name="restore_failed">That text isn’t a valid backup.</string>
+    <!-- %1$d = layouts restored, %2$d = settings restored. -->
+    <string name="restore_done_fmt">Restored %1$d layouts, gestures, voice commands and %2$d settings.</string>
+    <string name="restore_voice_needs_mic">Restored — but voice commands need the microphone permission on this phone: Settings → Voice commands… to grant and enable.</string>
 
     <!-- About & Support (the fairness promise) -->
     <string name="about_title">About &amp; Support…</string>
