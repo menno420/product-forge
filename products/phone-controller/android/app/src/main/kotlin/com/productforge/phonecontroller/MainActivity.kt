@@ -898,11 +898,18 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         }
     }
 
-    /** Apply restored settings; returns how many actually landed. Unknown keys/types skip. */
+    /**
+     * Apply restored settings with FULL-RESTORE semantics (Codex, PR #49): every
+     * whitelisted key is first reset, so a key the backup does not carry returns to
+     * its default instead of keeping the target's old value — restoring a snapshot
+     * reproduces the snapshot, it does not merge with what was there. Returns how
+     * many carried values actually landed; unknown keys/types skip.
+     */
     private fun applyRestoredSettings(entries: List<BackupSetting>): Int {
         var applied = 0
         val allowed = backupSettingsKeys().toSet()
         val e = prefs().edit()
+        for (k in allowed) e.remove(k)
         for (s in entries) {
             if (s.key !in allowed) continue // never restore a key this build doesn't own
             val ok = runCatching {
@@ -972,20 +979,36 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                     setDetail(getString(R.string.restore_failed))
                     return@setPositiveButton
                 }
-                backup.layouts.forEach { layoutStore.save(it) } // same id = overwrite in place
+                // FULL-RESTORE semantics throughout (Codex, PR #49): the snapshot
+                // replaces the configuration — layouts absent from it are removed,
+                // store blobs are replaced (empty is explicit in the format), and
+                // whitelisted settings not carried reset to defaults.
+                layoutStore.replaceAll(backup.layouts)
                 // Store blobs ride opaquely; both stores are fail-soft on read, so a
                 // malformed blob degrades to an empty store, never a crash.
-                backup.gesturesRaw?.let { prefs().edit().putString(GestureStore.KEY, it).apply() }
-                backup.voiceRaw?.let { prefs().edit().putString(VoiceStore.KEY, it).apply() }
+                prefs().edit()
+                    .putString(GestureStore.KEY, backup.gesturesRaw ?: "[]")
+                    .putString(VoiceStore.KEY, backup.voiceRaw ?: "[]")
+                    .apply()
                 val applied = applyRestoredSettings(backup.settings)
                 // Re-read everything the restored settings drive.
                 Haptics.enabled = prefs().getBoolean(PREF_HAPTICS, true)
                 turbo.setRateHz(prefs().getInt(PREF_TURBO_HZ, 10))
                 applyGyroSettings()
                 applyAppBackground()
+                // Voice recognition must follow the restored setting NOW, exactly as
+                // the Settings switch would (Codex P1): stop unconditionally, then
+                // start only if enabled AND mic-permitted; surface the permission gap
+                // instead of silently doing nothing on a new phone.
+                voiceDriver.stop()
+                startVoiceIfEnabled()
                 rebuildSpinnerSelection()
                 showSelection(currentSelection)
-                setDetail(getString(R.string.restore_done_fmt, backup.layouts.size, applied))
+                if (voiceEnabled() && !hasMicPermission()) {
+                    setDetail(getString(R.string.restore_voice_needs_mic))
+                } else {
+                    setDetail(getString(R.string.restore_done_fmt, backup.layouts.size, applied))
+                }
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
@@ -2183,8 +2206,13 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             .setView(ScrollView(this).apply { addView(content) })
             .setPositiveButton(R.string.layouts_title) { _, _ -> openLayoutManager() }
             .setNegativeButton(android.R.string.ok) { _, _ ->
-                // Deadzone applies on pad rebuild; refresh if the analog pad is live.
-                if (currentSelection == "b:${Pad.ANALOG.ordinal}") showSelection(currentSelection)
+                // Deadzone + long-press hold time apply on pad rebuild. Custom pads
+                // capture both at construction, so refresh them too — not only the
+                // built-in analog pad (Codex, PR #49: the hold-time slider otherwise
+                // takes effect only after a layout switch).
+                if (currentSelection == "b:${Pad.ANALOG.ordinal}" || currentSelection.startsWith("c:")) {
+                    showSelection(currentSelection)
+                }
             }
             .show()
     }

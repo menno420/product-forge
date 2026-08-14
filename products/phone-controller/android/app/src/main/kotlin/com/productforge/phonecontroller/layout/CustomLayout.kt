@@ -13,6 +13,10 @@
 package com.productforge.phonecontroller.layout
 
 import android.content.SharedPreferences
+import com.productforge.phonecontroller.hid.DpadDirection
+import com.productforge.phonecontroller.hid.GamepadButton
+import com.productforge.phonecontroller.hid.MediaButton
+import com.productforge.phonecontroller.hid.MouseButton
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -53,6 +57,23 @@ enum class PadActionType {
 }
 
 data class PadAction(val type: PadActionType, val code: String)
+
+/**
+ * Whether (type, code) is a well-formed LONG-PRESS ALTERNATE (Codex review,
+ * PR #49): the renderer switches a button into delayed tap/hold mode whenever an
+ * alternate is non-null, so a malformed import must degrade to "no alternate" —
+ * not to a hold that resolves to a no-op. MACRO/GESTURE are rejected by the same
+ * exclusion set the editor enforces.
+ */
+internal fun isValidAltAction(type: PadActionType, code: String): Boolean = when (type) {
+    PadActionType.GAMEPAD -> runCatching { GamepadButton.valueOf(code) }.isSuccess
+    PadActionType.DPAD -> runCatching { DpadDirection.valueOf(code) }.isSuccess
+    PadActionType.MEDIA -> runCatching { MediaButton.valueOf(code) }.isSuccess
+    PadActionType.MOUSE -> runCatching { MouseButton.valueOf(code) }.isSuccess
+    PadActionType.KEY, PadActionType.MODIFIER -> code.toIntOrNull() != null
+    PadActionType.COMBO -> Regex("""\d+:\d+""").matches(code)
+    PadActionType.MACRO, PadActionType.GESTURE -> false
+}
 
 /** Button shapes the styler can render (stored by name; default ROUNDED). */
 enum class PadShape { ROUNDED, CIRCLE, PILL, SQUARE }
@@ -199,10 +220,15 @@ data class PadButtonSpec(
             textSizeSp = o.optInt("textSp", 14),
             fx = runCatching { PadFx.valueOf(o.optString("fx", "FLAT")) }
                 .getOrDefault(PadFx.FLAT),
-            // A malformed/unknown alternate degrades to "no alternate", never fatal.
-            altAction = if (o.has("altType")) {
+            // A malformed/unknown alternate degrades to "no alternate", never fatal —
+            // and "malformed" includes a recognized type with a missing/invalid code
+            // (Codex, PR #49): a non-null alternate flips the button into hold mode,
+            // so it must only survive parsing when it can actually resolve.
+            altAction = if (o.has("altType") && o.has("altCode")) {
                 runCatching {
-                    PadAction(PadActionType.valueOf(o.getString("altType")), o.optString("altCode", ""))
+                    val type = PadActionType.valueOf(o.getString("altType"))
+                    val code = o.getString("altCode")
+                    if (isValidAltAction(type, code)) PadAction(type, code) else null
                 }.getOrNull()
             } else {
                 null
@@ -380,6 +406,12 @@ class LayoutStore(private val prefs: SharedPreferences) {
         persist(layouts)
     }
 
+    /**
+     * Replace the WHOLE store (full-restore semantics — Codex, PR #49): layouts
+     * absent from the restored snapshot are removed, not merged around.
+     */
+    fun replaceAll(layouts: List<CustomLayout>) = persist(layouts)
+
     fun delete(id: String) {
         persist(all().filterNot { it.id == id })
     }
@@ -425,8 +457,11 @@ object BackupCodec {
     ): String {
         val o = JSONObject().put("pcb", VERSION)
         o.put("layouts", JSONArray().also { arr -> layouts.forEach { arr.put(it.toJson()) } })
-        gesturesRaw?.let { o.put("gestures", it) }
-        voiceRaw?.let { o.put("voice", it) }
+        // Empty stores are encoded as explicit empties, never omitted — a full
+        // restore must be able to say "there were no gestures", not stay silent
+        // and leave the target's own (Codex, PR #49: restore is replace, not merge).
+        o.put("gestures", gesturesRaw ?: "[]")
+        o.put("voice", voiceRaw ?: "[]")
         o.put(
             "settings",
             JSONArray().also { arr ->
@@ -439,13 +474,16 @@ object BackupCodec {
     }
 
     /**
-     * Parse a backup blob; null only when the envelope itself is malformed. Inside a
-     * valid envelope every part is best-effort: an unparseable layout or settings row
-     * is skipped, never fatal — the caller reports what actually restored.
+     * Parse a backup blob; null when the envelope is malformed OR carries a version
+     * this build does not speak (Codex, PR #49: an unknown future format must be
+     * rejected outright — a lenient partial read would report a successful restore
+     * of a snapshot it silently misunderstood). Inside a valid v1 envelope every
+     * part is best-effort: an unparseable layout or settings row is skipped, never
+     * fatal — the caller reports what actually restored.
      */
     fun decode(raw: String): Backup? = runCatching {
         val o = JSONObject(raw.trim())
-        if (!o.has("pcb")) return null
+        if (o.optInt("pcb", 0) != VERSION) return null
         val layouts = mutableListOf<CustomLayout>()
         o.optJSONArray("layouts")?.let { arr ->
             for (i in 0 until arr.length()) {

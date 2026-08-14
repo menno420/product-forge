@@ -23,7 +23,7 @@
 
 ## 2026-08-14
 
-- PR #49 · phone-controller Slice 18 (v0.18.0, deeper customization) · merged green WITHOUT the estate's usual Codex pass — the Codex GitHub app has never been installed on this repo (measured: 0 historical codex comments here vs 37 in fleet-manager; both documented triggers fired unanswered). Re-check when the app is installed (owner ask queued estate-side as `OQ-FORGE-CODEX-INSTALL`): the alt-action HoldTouch semantics in `CustomPadView.kt` and the backup/restore whitelist in `MainActivity.kt` are the two spots most worth independent eyes.
+- PR #49 · phone-controller Slice 18 (v0.18.0) · **reviewed pre-merge after all** — Codex answered ~9.6 min after PR-open (first-ever review in this repo; slower than fm's measured 335 s), 5 findings, 5 conceded and fixed before merge. An earlier revision of this entry claimed the app was not installed here; wrong — 0 historical comments meant *never used*, not *not installed*. No re-check owed; kept as the correction record.
 
 ## Owner actions
 

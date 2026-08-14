@@ -281,6 +281,7 @@
     <string name="restore_failed">That text isn’t a valid backup.</string>
     <!-- %1$d = layouts restored, %2$d = settings restored. -->
     <string name="restore_done_fmt">Restored %1$d layouts, gestures, voice commands and %2$d settings.</string>
+    <string name="restore_voice_needs_mic">Restored — but voice commands need the microphone permission on this phone: Settings → Voice commands… to grant and enable.</string>
 
     <!-- About & Support (the fairness promise) -->
     <string name="about_title">About &amp; Support…</string>

@@ -75,18 +75,27 @@ classes / 22 source files** (the previously session-local no-SDK pipeline, now
 committed at `android/compile-check.sh`), gate exit 0. CI on the feature head
 `395e15b`: substrate-gate ✓ · check ✓ · capability-core ✓ · assemble-app ✓.
 
-**The Codex review step could not run in this repo — measured, not assumed.**
-Both documented triggers fired (PR opened ready 10:00Z; literal `@codex review`
-comment 10:03Z); nothing answered past double the measured 335 s relay, and the
-deciding evidence is historical: `is:pull-request commenter:chatgpt-codex-connector[bot]`
-returns **37** PRs in fleet-manager (the working control) and **0** ever in
-product-forge — the app is not installed here. Landed on green per this repo's
-own binding convention (CONVENTIONS.md: review is post-merge, veto = revert)
-with the required `review-queue.md` line added; the owner-only fix (install the
-Codex app on product-forge) is queued estate-side as `OQ-FORGE-CODEX-INSTALL`.
-The PR was label-parked (`do-not-automerge`) from creation until this close so
-merge-on-green could not land it mid-review-wait — the fm #828 flip-trap
-applied as designed.
+**Codex answered at 10:09:57Z — five findings (1×P1, 4×P2), all conceded and
+fixed — and this card briefly carried a wrong conclusion worth keeping.** At
+~10:13, with both documented triggers ~10 minutes unanswered against the 335 s
+relay measured on fm #812, this session wrote *"the app is not installed here"*
+into this card, `control/status.md` and `review-queue.md`, resting on a real
+measurement (0 historical codex comments in product-forge vs 37 in
+fleet-manager) that supported a weaker claim than the one written: **absence of
+past use is not absence of installation, and one slow first-ever review is not a
+wall.** The review landed while the close commit was being pushed; its own body
+says the repo is set up. **What contained the error:** the PR was label-parked
+(`do-not-automerge`) from creation, so nothing could merge during the wrong-belief
+window — the fm #828 flip-trap discipline turned a wrong inference into a
+records-only correction instead of a merged-before-review repeat of the recorded
+2026-08-07 failure. Dispositions: **[conceded] ×5** — full-replace restore
+semantics (layouts `replaceAll`, explicit-empty store blobs, whitelist reset
+before apply) · strict `pcb` version gate · alt-action code validation before
+hold-mode engages · voice-driver reconciliation + mic-permission surfacing after
+restore (the P1) · Settings-close now rebuilds active custom pads so hold-time
+and global-deadzone changes apply immediately. Re-verified: compile-check 102
+classes / 22 files. Relay latency datum: first-ever review in a repo took ~9.6
+min from PR-open — plan waits against "answered", never against 335 s.
 
 Deliberately excluded from backup/restore: bond/device-specific prefs
 (`desc_*`, `host_layout_*`, `last_host`, selection) and the supporter-preview
