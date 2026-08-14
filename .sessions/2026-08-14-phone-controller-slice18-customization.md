@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 18: deeper customization (per-widget config, long-press alternates, fine position, backup-everything)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: fable-5 · high · feature build
 
@@ -69,5 +69,27 @@ asset + sha256 exist; poll check-runs to a terminal state.
 
 ## Result
 
-*(fill at close — this card is born red and flips complete as the deliberate last
-step)*
+Shipped as PR #49 (v0.18.0, versionCode 16). Local verification all green
+before push: JVM suites **59/59**, Python **26/26**, `compile-check.sh` **100
+classes / 22 source files** (the previously session-local no-SDK pipeline, now
+committed at `android/compile-check.sh`), gate exit 0. CI on the feature head
+`395e15b`: substrate-gate ✓ · check ✓ · capability-core ✓ · assemble-app ✓.
+
+**The Codex review step could not run in this repo — measured, not assumed.**
+Both documented triggers fired (PR opened ready 10:00Z; literal `@codex review`
+comment 10:03Z); nothing answered past double the measured 335 s relay, and the
+deciding evidence is historical: `is:pull-request commenter:chatgpt-codex-connector[bot]`
+returns **37** PRs in fleet-manager (the working control) and **0** ever in
+product-forge — the app is not installed here. Landed on green per this repo's
+own binding convention (CONVENTIONS.md: review is post-merge, veto = revert)
+with the required `review-queue.md` line added; the owner-only fix (install the
+Codex app on product-forge) is queued estate-side as `OQ-FORGE-CODEX-INSTALL`.
+The PR was label-parked (`do-not-automerge`) from creation until this close so
+merge-on-green could not land it mid-review-wait — the fm #828 flip-trap
+applied as designed.
+
+Deliberately excluded from backup/restore: bond/device-specific prefs
+(`desc_*`, `host_layout_*`, `last_host`, selection) and the supporter-preview
+flag (per-install honesty). A detached-view stray release after pad-switch is
+guarded (`isAttachedToWindow` before an alt engages; a late primary-release is
+a no-op report).

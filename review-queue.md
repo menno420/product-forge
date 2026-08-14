@@ -21,6 +21,10 @@
 - PROPOSAL · one-writer-per-product convention · at most one live session holds the write-lock on a `products/<slug>/` subtree at a time (the PR #4/#5 overlap was a latent conflict). Manager to ratify into CONVENTIONS.md if accepted — not edited directly this slice.
 - PROPOSAL · card-marker preflight before push · run `bootstrap.py check --strict` against the session's own card in run.sh/pre-push to kill marker-typo PR reds (see retro idea section).
 
+## 2026-08-14
+
+- PR #49 · phone-controller Slice 18 (v0.18.0, deeper customization) · merged green WITHOUT the estate's usual Codex pass — the Codex GitHub app has never been installed on this repo (measured: 0 historical codex comments here vs 37 in fleet-manager; both documented triggers fired unanswered). Re-check when the app is installed (owner ask queued estate-side as `OQ-FORGE-CODEX-INSTALL`): the alt-action HoldTouch semantics in `CustomPadView.kt` and the backup/restore whitelist in `MainActivity.kt` are the two spots most worth independent eyes.
+
 ## Owner actions
 
 - OA-003 · enable GitHub Pages (Settings → Pages → Source: GitHub Actions) so the deploy workflow can publish products/games-web at https://menno420.github.io/product-forge/ · verify by visiting the URL after the next main push.
