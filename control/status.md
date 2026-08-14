@@ -1,11 +1,19 @@
 # product-forge · status
 
-updated: 2026-07-24T19:20:27Z
-phase: phone-controller Slice 17 SHIPPED — editor discard + customize-a-preset + fine size sliders (v0.17.0)
-lane: builder (phone-controller) · owner-live session 2026-07-23
+updated: 2026-08-14T09:45:57Z
+phase: phone-controller Slice 18 IN PROGRESS — per-widget config + long-press alternates + fine position + backup-everything (v0.18.0)
+lane: builder (phone-controller) · owner-live session 2026-08-14 (hub-attached, Slice-4 precedent)
 health: green
 
-## This session (2026-07-23, owner-live directive)
+## This session (2026-08-14, owner-live directive)
+**Slice 18 in progress (2026-08-14):** owner ask: make the app more customizable.
+Per-widget behavior config (stick deadzone/invert-Y, D-pad 4/8-way, touchpad
+speed+pen — also fixes custom touchpads ignoring global sensitivity/invert),
+long-press alternate actions, fine position sliders, backup/restore-everything.
+Repo question answered in-session: build in product-forge; graduation = fm R2, next.
+Card: `.sessions/2026-08-14-phone-controller-slice18-customization.md`.
+
+## Previous session (2026-07-23, owner-live directive)
 **Slice 17 in progress (2026-07-24):** owner editor UX — no easy discard; wants preset
 editing + fine size slider. Adding Cancel/Discard editor button (no pre-save for new),
 Width/Height live sliders (buttons + widgets), NDS template + New-from-preset picker.
