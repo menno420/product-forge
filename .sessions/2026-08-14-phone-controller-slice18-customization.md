@@ -13,6 +13,18 @@ it more customizable etc"* — plus the repo question (new repo vs product-forge
 answered in-session: build here on the proven signed-release rails; graduation to a
 dedicated repo stays the standing plan (fm program §2 + R2) as its own next step.
 
+## Previous-session review
+
+Slice 17 shipped 2026-07-24 (PR #48, v0.17.0, tag + stable-signed release live —
+14 releases v0.4.0→v0.17.0 verified on the releases page): editor discard,
+customize-a-preset, fine size sliders. `control/status.md` heartbeat matched HEAD
+`81b65bd` exactly; no open PRs, no parked work. The repo has been quiet since —
+the fleet program closed 2026-07-21 and the estate's work moved to fleet-manager
+(kit v1.21.0 rollout finished 2026-08-14). The README's "Remaining candidates"
+list predated Slices 10–17 and still offered five shipped features; corrected in
+this slice's README pass (verified against code comments: voice = Slice 11,
+overlay = Slice 12, per their own file headers).
+
 ## Scope (decide-and-flag, owner scope-freedom ruling)
 
 Theme: the parts of a layout you still cannot customize, plus config portability.

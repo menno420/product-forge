@@ -18,13 +18,14 @@ target. Based on the Ideas-Lab plan
 
 ## State
 
-**beta · field-verified against a real host.** Slices 1–13 are built and CI-proven: the
+**beta · field-verified against a real host.** Slices 1–18 are built and CI-proven: the
 capability verdict engine (portable Python + lockstep Kotlin port), the real
 `BluetoothHidDevice` transport, a **combo HID device** (keyboard + gamepad + mouse +
 media remote), the controller UI (ten built-in layouts + a full custom-layout
-editor, slide-over game pads, analog sticks + gyro, dark controller theme, focus
-mode, landscape mode, rotation-safe connection), and a release pipeline that
-publishes a signed, installable APK. Owner playtest 2026-07-23 (v0.4.0, laptop
+editor, slide-over game pads, analog sticks + gyro, per-widget behavior config,
+long-press alternate actions, dark controller theme, focus
+mode, landscape mode, rotation-safe connection, backup/restore-everything), and a
+release pipeline that publishes a signed, installable APK. Owner playtest 2026-07-23 (v0.4.0, laptop
 host): pairing ✓, keyboard input ✓, GBA emulator driven via keys ✓, gamepad reports
 confirmed live on a HID gamepad tester ✓ (emulator-side controller *binding* is
 per-emulator configuration — map the buttons once in its input settings).
@@ -73,9 +74,17 @@ browser/files app when prompted (normal sideload flow — this app is not on a s
      a **left/right analog stick**, an **8-way D-pad** (with diagonals — press
      between side and front for two directions at once), a **touchpad**, or a
      **gyro toggle** — so a custom layout can be as full-featured as the built-in
-     Analog pad. Per-button **color** (16-swatch palette, auto-contrast text),
+     Analog pad. **Every widget has its own behavior options** (short-press it in
+     the editor): per-stick **deadzone override** and **invert-vertical**
+     (flight-style), D-pad **diagonals on/off** (4-way for games that mis-read
+     corners), per-touchpad **pointer speed** and **pen mode** (DS-stylus:
+     contact draws). A button can carry a **long-press alternate action ⏱** —
+     tap fires the main action, holding past the (Settings-tunable) threshold
+     fires the second one held — so one button carries two inputs. Per-button
+     **color** (16-swatch palette, auto-contrast text),
      **shape** (rounded / circle / pill / square), **opacity**, **text size**,
-     **turbo ⚡** (rate settable 5–20/s); duplicate buttons or whole layouts; pick a
+     **turbo ⚡** (rate settable 5–20/s); fine **size AND position sliders** for
+     percent-precise placement; duplicate buttons or whole layouts; pick a
      pad **background** (incl. OLED black). Custom layouts join this spinner — and
      can be **shared as text** (Layouts → your layout → Share…) and imported by
      anyone via Layouts → *Import layout…* (paste).
@@ -118,12 +127,16 @@ browser/files app when prompted (normal sideload flow — this app is not on a s
 
    In Settings you can also map the **hardware volume buttons** to inputs
    (L1/R1, L2/R2, or PgUp/PgDn — real physical shoulder buttons in landscape;
-   volume behaves normally when disconnected), set the **turbo rate**,
+   volume behaves normally when disconnected), set the **turbo rate** and the
+   **long-press hold time**,
    **invert touchpad scrolling**, and define **voice commands** — say a phrase
    in your own language and any action fires on the host (great as a hands-free
    media remote or for accessibility; recognition takes ~a second, so it's for
    menus and media, not twitch gameplay; mic is live only while the app is on
-   screen, recognition prefers on-device).
+   screen, recognition prefers on-device). **Backup everything… / Restore
+   backup…** turn the whole configuration — every custom layout, recorded
+   gesture, voice command and the settings — into one pasteable text blob, so a
+   new phone (or any reinstall) starts exactly where the old one left off.
 
    **Fairness promise:** the app is complete for free — every key, pad and editor
    feature, no ads, no subscriptions. A one-time ~€1 supporter pack (cosmetic
@@ -199,7 +212,7 @@ products/phone-controller/
 
 ## Build ladder / next slices
 
-Slices 1–8 done: scaffold → working core → tests → README → release artifact (S4) →
+Slices 1–8: scaffold → working core → tests → README → release artifact (S4) →
 mouse + full keyboard + layout presets + slide-over + landscape (S5) → **custom
 layout editor** + turbo + analog sticks + gyro + per-host memory + stale-pairing
 warning (S6, the idea doc's items 6/7/8/10) → per-button colors / shapes / opacity /
@@ -207,11 +220,15 @@ text size + duplicates + pad backgrounds (S7) → dark controller theme + focus 
 app-wide background + NDS touch-pad + pen mode (S8, owner recording feedback) →
 send-text+voice, combo shortcuts deck, presenter pad, host switching, supporter
 groundwork (S9, owner-approved brainstorm + fair-IAP research).
+Slices 10–18: layout share/import + macros + volume-keys-as-inputs + scroll invert
+(S10) → voice commands (S11) → overlay play-on-this-phone (S12) → recorded
+gestures (S13) → gyro targets + visualizer (S14) → placeable widgets + NDS
+template (S15) → true multi-touch (S16) → editor discard + customize-a-preset +
+fine size sliders (S17) → **deeper customization** (S18): per-widget behavior
+(stick deadzone/invert-Y, D-pad 4/8-way, touchpad speed/pen), long-press
+alternate actions, fine position sliders, backup/restore-everything.
 Remaining candidates:
 
-- Foreground volume-key-as-input mapping (idea doc item 9).
-- Scroll-direction invert toggle; macros (multi-key sequences on one button);
-  long-press key alternates; layout import/export (share as text).
 - BLE-HOGP fallback transport for `BLE_HOGP_FALLBACK`-verdict devices.
 
 `iOS-as-controller` is deferred (network companion-receiver only); background

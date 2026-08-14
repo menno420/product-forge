@@ -55,7 +55,8 @@ class GestureStore(private val prefs: SharedPreferences) {
         prefs.edit().putString(KEY, arr.toString()).apply()
     }
 
-    private companion object {
+    companion object {
+        /** Prefs key — public so backup-everything can carry the store blob opaquely. */
         const val KEY = "saved_gestures"
     }
 }

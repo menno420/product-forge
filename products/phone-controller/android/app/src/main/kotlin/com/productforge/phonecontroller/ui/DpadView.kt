@@ -28,6 +28,13 @@ class DpadView(
 
     private val held = HashSet<DpadDirection>()
 
+    /**
+     * Cardinals-only mode (Slice 18 per-widget option): the pad reads as 4 sectors
+     * of 90° instead of 8 of 45°, so a slightly-off press can never fire a diagonal
+     * — for games that mis-read corner inputs. Glide semantics are unchanged.
+     */
+    var fourWay: Boolean = false
+
     private val basePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x2A808080; style = Paint.Style.FILL }
     private val armPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x33FFFFFF; style = Paint.Style.FILL }
     private val arrowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xCCCED6DD.toInt(); style = Paint.Style.FILL }
@@ -45,9 +52,18 @@ class DpadView(
         val dy = y - cy
         val mag = hypot(dx, dy) / half
         if (mag < deadZone) return emptySet()
-        // 8 sectors of 45°, offset so N spans ±22.5° around straight up.
         var deg = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat() // -180..180, 0 = +x (right)
         if (deg < 0) deg += 360f // 0..360, 0=right, 90=down, 180=left, 270=up
+        if (fourWay) {
+            // 4 sectors of 90°, offset so each cardinal spans ±45° — no diagonals.
+            return when ((((deg + 45f) % 360f) / 90f).toInt()) { // 0..3, 0=right
+                0 -> setOf(DpadDirection.RIGHT)
+                1 -> setOf(DpadDirection.DOWN)
+                2 -> setOf(DpadDirection.LEFT)
+                else -> setOf(DpadDirection.UP)
+            }
+        }
+        // 8 sectors of 45°, offset so N spans ±22.5° around straight up.
         val sector = (((deg + 22.5f) % 360f) / 45f).toInt() // 0..7, 0=right
         return when (sector) {
             0 -> setOf(DpadDirection.RIGHT)

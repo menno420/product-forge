@@ -29,6 +29,13 @@ class StickView(context: Context, private val listener: Listener) : View(context
     /** Deadzone as a fraction of the stick radius (0.0..0.5), from Settings. */
     var deadzonePct: Float = 0.08f
 
+    /**
+     * Invert the vertical axis at emit time (Slice 18 per-widget option): push up =
+     * pull down, flight-style. The thumb still draws where the finger is — only the
+     * reported axis flips.
+     */
+    var invertY: Boolean = false
+
     private var thumbX = 0f
     private var thumbY = 0f
     private var engaged = false
@@ -121,9 +128,10 @@ class StickView(context: Context, private val listener: Listener) : View(context
         val scaled = ((mag - deadzonePct) / (1f - deadzonePct)).coerceIn(0f, 1f)
         val ux = if (mag > 0f) nx / mag else 0f
         val uy = if (mag > 0f) ny / mag else 0f
+        val outY = (uy * scaled * 127f).roundToInt().coerceIn(-127, 127)
         listener.onStick(
             (ux * scaled * 127f).roundToInt().coerceIn(-127, 127),
-            (uy * scaled * 127f).roundToInt().coerceIn(-127, 127),
+            if (invertY) -outY else outY,
         )
     }
 }

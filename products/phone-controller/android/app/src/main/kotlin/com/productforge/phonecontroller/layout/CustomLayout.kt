@@ -75,25 +75,49 @@ interface PadPositioned {
 /** Interactive widgets a custom layout can hold beyond plain buttons (Slice 15). */
 enum class PadWidgetType { LEFT_STICK, RIGHT_STICK, DPAD, TOUCHPAD, GYRO }
 
-/** A placed widget: a type + percent rect (bigger min size than a button). */
+/**
+ * A placed widget: a type + percent rect (bigger min size than a button), plus
+ * OPTIONAL per-widget behavior (Slice 18) — every field defaults to "inherit the
+ * global setting / classic behavior" and is serialized only when set, so layouts
+ * saved by any earlier version round-trip byte-identical (the standing guard
+ * recipe: never make a new field required).
+ */
 data class PadWidgetSpec(
     var type: PadWidgetType,
     override var xPct: Float,
     override var yPct: Float,
     override var wPct: Float,
     override var hPct: Float,
+    /** Sticks: deadzone override (0.0..0.30), or null = the global Settings value. */
+    var deadzonePct: Float? = null,
+    /** Sticks: invert the vertical axis (push up = pull down — flight-style). */
+    var invertY: Boolean = false,
+    /** D-pad: cardinals only — diagonal sectors snap to the nearest cardinal. */
+    var fourWay: Boolean = false,
+    /** Touchpad: pointer-speed percent override (25..300), or null = global. */
+    var speedPct: Int? = null,
+    /** Touchpad: DS-stylus semantics (contact = held LEFT button draws). */
+    var penMode: Boolean = false,
 ) : PadPositioned {
     override fun clampToPad() {
         wPct = wPct.coerceIn(0.10f, 0.9f)
         hPct = hPct.coerceIn(0.10f, 0.9f)
         xPct = xPct.coerceIn(0f, 1f - wPct)
         yPct = yPct.coerceIn(0f, 1f - hPct)
+        deadzonePct = deadzonePct?.coerceIn(0f, 0.30f)
+        speedPct = speedPct?.coerceIn(25, 300)
     }
 
     fun toJson(): JSONObject = JSONObject()
         .put("wt", type.name)
         .put("x", xPct.toDouble()).put("y", yPct.toDouble())
         .put("w", wPct.toDouble()).put("h", hPct.toDouble())
+        // Behavior keys ride only when they differ from the default (round-trip guard).
+        .also { o -> deadzonePct?.let { o.put("dz", it.toDouble()) } }
+        .also { o -> if (invertY) o.put("iy", true) }
+        .also { o -> if (fourWay) o.put("fw", true) }
+        .also { o -> speedPct?.let { o.put("sp", it) } }
+        .also { o -> if (penMode) o.put("pen", true) }
 
     companion object {
         fun fromJson(o: JSONObject): PadWidgetSpec = PadWidgetSpec(
@@ -102,6 +126,11 @@ data class PadWidgetSpec(
             yPct = o.getDouble("y").toFloat(),
             wPct = o.getDouble("w").toFloat(),
             hPct = o.getDouble("h").toFloat(),
+            deadzonePct = if (o.has("dz")) o.getDouble("dz").toFloat() else null,
+            invertY = o.optBoolean("iy", false),
+            fourWay = o.optBoolean("fw", false),
+            speedPct = if (o.has("sp")) o.getInt("sp") else null,
+            penMode = o.optBoolean("pen", false),
         ).also { it.clampToPad() }
     }
 }
@@ -119,6 +148,14 @@ data class PadButtonSpec(
     var shape: PadShape = PadShape.ROUNDED,
     var textSizeSp: Int = 14,
     var fx: PadFx = PadFx.FLAT,
+    /**
+     * Long-press alternate action (Slice 18), or null = classic hold semantics.
+     * With an alternate set, a quick tap fires [action] and holding past the
+     * Settings threshold fires THIS (held until release) — so one button carries
+     * two inputs. Turbo and an alternate are mutually exclusive (the editor
+     * enforces it; the renderer lets the alternate win on imported layouts).
+     */
+    var altAction: PadAction? = null,
 ) : PadPositioned {
     override fun clampToPad() {
         wPct = wPct.coerceIn(0.05f, 0.6f)
@@ -141,6 +178,9 @@ data class PadButtonSpec(
         .put("textSp", textSizeSp)
         .also { o -> if (fx != PadFx.FLAT) o.put("fx", fx.name) }
         .also { o -> colorArgb?.let { o.put("color", it) } }
+        .also { o ->
+            altAction?.let { a -> o.put("altType", a.type.name).put("altCode", a.code) }
+        }
 
     companion object {
         // Visual fields are OPTIONAL with defaults so layouts saved by older
@@ -159,6 +199,14 @@ data class PadButtonSpec(
             textSizeSp = o.optInt("textSp", 14),
             fx = runCatching { PadFx.valueOf(o.optString("fx", "FLAT")) }
                 .getOrDefault(PadFx.FLAT),
+            // A malformed/unknown alternate degrades to "no alternate", never fatal.
+            altAction = if (o.has("altType")) {
+                runCatching {
+                    PadAction(PadActionType.valueOf(o.getString("altType")), o.optString("altCode", ""))
+                }.getOrNull()
+            } else {
+                null
+            },
         ).also { it.clampToPad() }
     }
 }
@@ -345,4 +393,79 @@ class LayoutStore(private val prefs: SharedPreferences) {
     private companion object {
         const val KEY = "custom_layouts"
     }
+}
+
+/** One typed settings entry inside a backup ("b"ool / "i"nt / "f"loat / "l"ong / "s"tring). */
+data class BackupSetting(val key: String, val type: String, val value: Any)
+
+/** Everything a backup blob carries; each part is optional so partial blobs restore. */
+data class Backup(
+    val layouts: List<CustomLayout>,
+    val gesturesRaw: String?,
+    val voiceRaw: String?,
+    val settings: List<BackupSetting>,
+)
+
+/**
+ * Backup-everything codec (Slice 18): every custom layout + the opaque gesture and
+ * voice store blobs + a typed whitelist of settings, in one pasteable text blob —
+ * the same community-share mechanism as a single layout, widened to the whole
+ * configuration. Exists so a reinstall (new phone, or a future release-signature
+ * change) never costs the owner his layouts. Version-marked like the layout share
+ * envelope so future formats can evolve without breaking old restores.
+ */
+object BackupCodec {
+    const val VERSION = 1
+
+    fun encode(
+        layouts: List<CustomLayout>,
+        gesturesRaw: String?,
+        voiceRaw: String?,
+        settings: List<BackupSetting>,
+    ): String {
+        val o = JSONObject().put("pcb", VERSION)
+        o.put("layouts", JSONArray().also { arr -> layouts.forEach { arr.put(it.toJson()) } })
+        gesturesRaw?.let { o.put("gestures", it) }
+        voiceRaw?.let { o.put("voice", it) }
+        o.put(
+            "settings",
+            JSONArray().also { arr ->
+                settings.forEach {
+                    arr.put(JSONObject().put("k", it.key).put("t", it.type).put("v", it.value))
+                }
+            },
+        )
+        return o.toString()
+    }
+
+    /**
+     * Parse a backup blob; null only when the envelope itself is malformed. Inside a
+     * valid envelope every part is best-effort: an unparseable layout or settings row
+     * is skipped, never fatal — the caller reports what actually restored.
+     */
+    fun decode(raw: String): Backup? = runCatching {
+        val o = JSONObject(raw.trim())
+        if (!o.has("pcb")) return null
+        val layouts = mutableListOf<CustomLayout>()
+        o.optJSONArray("layouts")?.let { arr ->
+            for (i in 0 until arr.length()) {
+                runCatching { layouts.add(CustomLayout.fromJson(arr.getJSONObject(i))) }
+            }
+        }
+        val settings = mutableListOf<BackupSetting>()
+        o.optJSONArray("settings")?.let { arr ->
+            for (i in 0 until arr.length()) {
+                runCatching {
+                    val e = arr.getJSONObject(i)
+                    settings.add(BackupSetting(e.getString("k"), e.getString("t"), e.get("v")))
+                }
+            }
+        }
+        Backup(
+            layouts = layouts,
+            gesturesRaw = if (o.has("gestures")) o.getString("gestures") else null,
+            voiceRaw = if (o.has("voice")) o.getString("voice") else null,
+            settings = settings,
+        )
+    }.getOrNull()
 }

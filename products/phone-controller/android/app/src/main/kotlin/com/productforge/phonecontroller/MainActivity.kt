@@ -57,6 +57,8 @@ import com.productforge.phonecontroller.hid.GamepadButton
 import com.productforge.phonecontroller.hid.KeyUsage
 import com.productforge.phonecontroller.hid.MediaButton
 import com.productforge.phonecontroller.hid.MouseButton
+import com.productforge.phonecontroller.layout.BackupCodec
+import com.productforge.phonecontroller.layout.BackupSetting
 import com.productforge.phonecontroller.layout.CustomLayout
 import com.productforge.phonecontroller.layout.LayoutStore
 import com.productforge.phonecontroller.layout.PadAction
@@ -608,6 +610,9 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
 
     private fun deadzone(): Float = prefs().getFloat(PREF_DEADZONE, 0.08f)
 
+    /** Long-press hold time before a button's alternate engages (Slice 18). */
+    private fun altHoldMs(): Long = prefs().getInt(PREF_ALT_MS, 350).toLong()
+
     /** App-wide background (Slice 8). 0 = unset sentinel → default dark slate. */
     private fun appBg(): Int {
         val stored = prefs().getInt(PREF_APP_BG, 0)
@@ -656,6 +661,9 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             CustomPadView(
                 this, layout, editMode = false, actionResolver = ::resolveAction, turbo = turbo,
                 host = this, gyro = gyroToggle, deadzonePct = deadzone(),
+                touchpad = touchpadConfig,
+                altResolver = { a -> resolveRaw(a.type.name, a.code) ?: { _ -> } },
+                altHoldMs = altHoldMs(),
             )
         } else {
             when (Pad.entries.getOrElse(key.removePrefix("b:").toIntOrNull() ?: 0) { Pad.FULL_GAMEPAD }) {
@@ -866,6 +874,123 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             .show()
     }
 
+    // --- backup everything (Slice 18) ------------------------------------------------------
+
+    /** The Settings keys a backup carries. Bond/device-specific prefs stay out on purpose. */
+    private fun backupSettingsKeys(): List<String> = listOf(
+        PREF_HAPTICS, PREF_DEADZONE, PREF_TURBO_HZ, PREF_ALT_MS, PREF_SCROLL_INVERT,
+        PREF_VOLKEYS, PREF_VOICE, PREF_GYRO_TARGET, PREF_GYRO_SENS, PREF_GYRO_INV_X,
+        PREF_GYRO_INV_Y, PREF_APP_BG, PREF_SENSITIVITY, PREF_NDS_PEN,
+    )
+
+    /** Snapshot the whitelisted settings as typed entries (Float rides as Double for JSON). */
+    private fun settingsSnapshot(): List<BackupSetting> = buildList {
+        val all = prefs().all
+        for (k in backupSettingsKeys()) {
+            when (val v = all[k]) {
+                is Boolean -> add(BackupSetting(k, "b", v))
+                is Int -> add(BackupSetting(k, "i", v))
+                is Long -> add(BackupSetting(k, "l", v))
+                is Float -> add(BackupSetting(k, "f", v.toDouble()))
+                is String -> add(BackupSetting(k, "s", v))
+                else -> {} // unset = nothing to carry; the default applies on restore
+            }
+        }
+    }
+
+    /** Apply restored settings; returns how many actually landed. Unknown keys/types skip. */
+    private fun applyRestoredSettings(entries: List<BackupSetting>): Int {
+        var applied = 0
+        val allowed = backupSettingsKeys().toSet()
+        val e = prefs().edit()
+        for (s in entries) {
+            if (s.key !in allowed) continue // never restore a key this build doesn't own
+            val ok = runCatching {
+                when (s.type) {
+                    "b" -> e.putBoolean(s.key, s.value as Boolean)
+                    "i" -> e.putInt(s.key, (s.value as Number).toInt())
+                    "l" -> e.putLong(s.key, (s.value as Number).toLong())
+                    "f" -> e.putFloat(s.key, (s.value as Number).toFloat())
+                    "s" -> e.putString(s.key, s.value as String)
+                    else -> error("unknown settings type")
+                }
+            }.isSuccess
+            if (ok) applied++
+        }
+        e.apply()
+        return applied
+    }
+
+    /**
+     * Backup EVERYTHING as one pasteable blob (share sheet + clipboard): all custom
+     * layouts, recorded gestures, voice commands, and the Settings whitelist. The
+     * deliberate insurance against reinstalls — a new phone, or a future release
+     * signed with a different key, no longer costs the layouts.
+     */
+    private fun backupAll() {
+        val layouts = layoutStore.all()
+        val blob = BackupCodec.encode(
+            layouts = layouts,
+            gesturesRaw = prefs().getString(GestureStore.KEY, null),
+            voiceRaw = prefs().getString(VoiceStore.KEY, null),
+            settings = settingsSnapshot(),
+        )
+        (getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager)
+            ?.setPrimaryClip(ClipData.newPlainText("phone-controller backup", blob))
+        runCatching {
+            startActivity(
+                Intent.createChooser(
+                    Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, blob)
+                    },
+                    getString(R.string.backup_title),
+                ),
+            )
+        }
+        setDetail(getString(R.string.backup_done_fmt, layouts.size))
+    }
+
+    /** Paste-and-restore the backup blob. Layout restore is id-preserving (a true restore). */
+    private fun restoreAllDialog() {
+        val input = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            minLines = 3
+            maxLines = 8
+            hint = getString(R.string.restore_hint)
+        }
+        val pad = dp(16)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.restore_title)
+            .setView(FrameLayout(this).apply {
+                setPadding(pad, dp(4), pad, 0)
+                addView(input)
+            })
+            .setPositiveButton(R.string.restore_go) { _, _ ->
+                val backup = BackupCodec.decode(input.text.toString())
+                if (backup == null) {
+                    setDetail(getString(R.string.restore_failed))
+                    return@setPositiveButton
+                }
+                backup.layouts.forEach { layoutStore.save(it) } // same id = overwrite in place
+                // Store blobs ride opaquely; both stores are fail-soft on read, so a
+                // malformed blob degrades to an empty store, never a crash.
+                backup.gesturesRaw?.let { prefs().edit().putString(GestureStore.KEY, it).apply() }
+                backup.voiceRaw?.let { prefs().edit().putString(VoiceStore.KEY, it).apply() }
+                val applied = applyRestoredSettings(backup.settings)
+                // Re-read everything the restored settings drive.
+                Haptics.enabled = prefs().getBoolean(PREF_HAPTICS, true)
+                turbo.setRateHz(prefs().getInt(PREF_TURBO_HZ, 10))
+                applyGyroSettings()
+                applyAppBackground()
+                rebuildSpinnerSelection()
+                showSelection(currentSelection)
+                setDetail(getString(R.string.restore_done_fmt, backup.layouts.size, applied))
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     /**
      * New-layout / customize-a-preset flow (Slice 15; Slice 17). Pick a starter —
      * Blank or a controller preset (GBA / Full gamepad / Analog / NDS) — name it, then
@@ -916,30 +1041,165 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         PadWidgetType.GYRO -> getString(R.string.widget_gyro)
     }
 
-    /** Edit dialog for a placed widget: change type, resize, or delete. */
+    /** Edit dialog for a placed widget: type, size/position, behavior, delete. */
     private fun widgetConfigDialog(layout: CustomLayout, spec: PadWidgetSpec) {
-        val entries = listOf<Pair<String, () -> Unit>>(
-            getString(R.string.editor_change_type) to {
-                val types = PadWidgetType.entries
-                AlertDialog.Builder(this)
-                    .setTitle(R.string.editor_change_type)
-                    .setItems(types.map { widgetTypeLabel(it) }.toTypedArray()) { _, w ->
-                        spec.type = types[w]
-                        editingView?.rebuild()
-                    }
-                    .show()
-            },
-            getString(R.string.editor_size) to {
-                sizeSliderDialog(spec, 0.10f, 0.90f, 0.10f, 0.90f)
-            },
-            getString(R.string.editor_delete) to {
-                layout.widgets.remove(spec)
-                editingView?.rebuild()
-            },
-        )
+        val entries = buildList<Pair<String, () -> Unit>> {
+            add(
+                getString(R.string.editor_change_type) to {
+                    val types = PadWidgetType.entries
+                    AlertDialog.Builder(this@MainActivity)
+                        .setTitle(R.string.editor_change_type)
+                        .setItems(types.map { widgetTypeLabel(it) }.toTypedArray()) { _, w ->
+                            spec.type = types[w]
+                            editingView?.rebuild()
+                        }
+                        .show()
+                    Unit
+                },
+            )
+            add(
+                getString(R.string.editor_size) to {
+                    sizeSliderDialog(spec, 0.10f, 0.90f, 0.10f, 0.90f)
+                },
+            )
+            add(getString(R.string.editor_position) to { posSliderDialog(spec) })
+            // Per-widget behavior (Slice 18) — entries only where they mean something.
+            when (spec.type) {
+                PadWidgetType.LEFT_STICK, PadWidgetType.RIGHT_STICK -> {
+                    add(
+                        getString(
+                            R.string.widget_deadzone_fmt,
+                            spec.deadzonePct?.let { "${(it * 100).toInt()}%" }
+                                ?: getString(R.string.widget_global),
+                        ) to { widgetDeadzoneDialog(layout, spec) },
+                    )
+                    val invLabel = if (spec.invertY) R.string.widget_invert_y_off else R.string.widget_invert_y_on
+                    add(
+                        getString(invLabel) to {
+                            spec.invertY = !spec.invertY
+                            widgetConfigDialog(layout, spec)
+                        },
+                    )
+                }
+                PadWidgetType.DPAD -> {
+                    val diagLabel = if (spec.fourWay) R.string.widget_diagonals_on else R.string.widget_diagonals_off
+                    add(
+                        getString(diagLabel) to {
+                            spec.fourWay = !spec.fourWay
+                            widgetConfigDialog(layout, spec)
+                        },
+                    )
+                }
+                PadWidgetType.TOUCHPAD -> {
+                    add(
+                        getString(
+                            R.string.widget_speed_fmt,
+                            spec.speedPct?.let { "$it%" } ?: getString(R.string.widget_global),
+                        ) to { widgetSpeedDialog(layout, spec) },
+                    )
+                    val penLabel = if (spec.penMode) R.string.widget_pen_off else R.string.widget_pen_on
+                    add(
+                        getString(penLabel) to {
+                            spec.penMode = !spec.penMode
+                            widgetConfigDialog(layout, spec)
+                        },
+                    )
+                }
+                PadWidgetType.GYRO -> {}
+            }
+            add(
+                getString(R.string.editor_delete) to {
+                    layout.widgets.remove(spec)
+                    editingView?.rebuild()
+                    Unit
+                },
+            )
+        }
         AlertDialog.Builder(this)
             .setTitle(widgetTypeLabel(spec.type))
             .setItems(entries.map { it.first }.toTypedArray()) { _, which -> entries[which].second() }
+            .show()
+    }
+
+    /** Per-stick deadzone override: slider 0..30% + a reset row back to global. */
+    private fun widgetDeadzoneDialog(layout: CustomLayout, spec: PadWidgetSpec) {
+        val label = TextView(this).apply { textSize = 13f }
+        fun refresh() {
+            label.text = getString(
+                R.string.widget_deadzone_fmt,
+                spec.deadzonePct?.let { "${(it * 100).toInt()}%" } ?: getString(R.string.widget_global),
+            )
+        }
+        refresh()
+        val bar = SeekBar(this).apply {
+            max = 30
+            progress = ((spec.deadzonePct ?: deadzone()) * 100).toInt().coerceIn(0, 30)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(sb: SeekBar?, value: Int, fromUser: Boolean) {
+                    if (fromUser) {
+                        spec.deadzonePct = value / 100f
+                        refresh()
+                    }
+                }
+                override fun onStartTrackingTouch(sb: SeekBar?) {}
+                override fun onStopTrackingTouch(sb: SeekBar?) {}
+            })
+        }
+        val pad = dp(16)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.widget_deadzone_title)
+            .setView(LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(pad, pad, pad, 0)
+                addView(label)
+                addView(bar)
+            })
+            .setPositiveButton(android.R.string.ok) { _, _ -> widgetConfigDialog(layout, spec) }
+            .setNeutralButton(R.string.widget_use_global) { _, _ ->
+                spec.deadzonePct = null
+                widgetConfigDialog(layout, spec)
+            }
+            .show()
+    }
+
+    /** Per-touchpad speed override: slider 25..300% + a reset row back to global. */
+    private fun widgetSpeedDialog(layout: CustomLayout, spec: PadWidgetSpec) {
+        val label = TextView(this).apply { textSize = 13f }
+        fun refresh() {
+            label.text = getString(
+                R.string.widget_speed_fmt,
+                spec.speedPct?.let { "$it%" } ?: getString(R.string.widget_global),
+            )
+        }
+        refresh()
+        val bar = SeekBar(this).apply {
+            max = 275 // 25..300%
+            progress = ((spec.speedPct ?: 100) - 25).coerceIn(0, 275)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(sb: SeekBar?, value: Int, fromUser: Boolean) {
+                    if (fromUser) {
+                        spec.speedPct = value + 25
+                        refresh()
+                    }
+                }
+                override fun onStartTrackingTouch(sb: SeekBar?) {}
+                override fun onStopTrackingTouch(sb: SeekBar?) {}
+            })
+        }
+        val pad = dp(16)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.widget_speed_title)
+            .setView(LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(pad, pad, pad, 0)
+                addView(label)
+                addView(bar)
+            })
+            .setPositiveButton(android.R.string.ok) { _, _ -> widgetConfigDialog(layout, spec) }
+            .setNeutralButton(R.string.widget_use_global) { _, _ ->
+                spec.speedPct = null
+                widgetConfigDialog(layout, spec)
+            }
             .show()
     }
 
@@ -1034,19 +1294,41 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
     private fun buttonConfigDialog(layout: CustomLayout, spec: PadButtonSpec) {
         // Label→handler pairs: indexes can never drift when entries are added.
         val turboLabel = if (spec.turbo) R.string.editor_turbo_off else R.string.editor_turbo_on
+        val altLabel = if (spec.altAction == null) R.string.editor_alt_set else R.string.editor_alt_change
         val entries = listOf<Pair<String, () -> Unit>>(
             getString(R.string.editor_change_action) to { pickActionType(spec) },
             getString(turboLabel) to {
                 if (spec.action.type == PadActionType.MACRO) {
                     // Auto-fire on a timed sequence = chaos; refuse with a hint.
                     setDetail(getString(R.string.macro_no_turbo))
+                } else if (spec.altAction != null) {
+                    // Turbo's pulse would keep re-crossing the hold threshold.
+                    setDetail(getString(R.string.alt_no_turbo))
                 } else {
                     spec.turbo = !spec.turbo
                     editingView?.rebuild()
                 }
                 Unit
             },
+            getString(altLabel) to {
+                when {
+                    spec.action.type == PadActionType.MACRO ->
+                        // A timed sequence has no clean "held alternate" semantics.
+                        setDetail(getString(R.string.alt_no_macro))
+                    spec.turbo -> setDetail(getString(R.string.alt_no_turbo))
+                    else -> pickAltAction(spec)
+                }
+            },
+            getString(R.string.editor_alt_remove) to {
+                if (spec.altAction != null) {
+                    spec.altAction = null
+                    editingView?.rebuild()
+                    setDetail(getString(R.string.alt_removed))
+                }
+                Unit
+            },
             getString(R.string.editor_size) to { pickSize(spec) },
+            getString(R.string.editor_position) to { posSliderDialog(spec) },
             getString(R.string.editor_color) to { pickColor(spec) },
             getString(R.string.editor_shape) to { pickShape(spec) },
             getString(R.string.editor_style) to { pickFx(spec) },
@@ -1160,6 +1442,75 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             .setView(ScrollView(this).apply { addView(content) })
             .setPositiveButton(android.R.string.ok, null)
             .show()
+    }
+
+    /**
+     * Fine position control (Slice 18, completing Slice 17's fine-size direction):
+     * X/Y sliders with the same live preview. Drag on the pad stays the fast path;
+     * this is for the last percent of precision (overlay mode especially, where a
+     * button must sit exactly on a game's own control).
+     */
+    private fun posSliderDialog(spec: PadPositioned) {
+        val pad = dp(16)
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, 0)
+        }
+        val xLabel = TextView(this).apply { textSize = 13f }
+        val yLabel = TextView(this).apply { textSize = 13f; setPadding(0, dp(10), 0, 0) }
+        val xBar = SeekBar(this).apply { max = 100 }
+        val yBar = SeekBar(this).apply { max = 100 }
+
+        fun refreshLabels() {
+            xLabel.text = getString(R.string.pos_x_fmt, "${(spec.xPct * 100).toInt()}%")
+            yLabel.text = getString(R.string.pos_y_fmt, "${(spec.yPct * 100).toInt()}%")
+        }
+        // Slider range maps onto the reachable span (0 .. 1-size), so 100% = flush
+        // against the right/bottom edge whatever the element's size.
+        fun setX(p: Int) {
+            spec.xPct = (p / 100f) * (1f - spec.wPct)
+            spec.clampToPad(); refreshLabels(); editingView?.rebuild()
+        }
+        fun setY(p: Int) {
+            spec.yPct = (p / 100f) * (1f - spec.hPct)
+            spec.clampToPad(); refreshLabels(); editingView?.rebuild()
+        }
+
+        xBar.progress = if (spec.wPct >= 1f) 0 else ((spec.xPct / (1f - spec.wPct)) * 100).toInt().coerceIn(0, 100)
+        yBar.progress = if (spec.hPct >= 1f) 0 else ((spec.yPct / (1f - spec.hPct)) * 100).toInt().coerceIn(0, 100)
+        refreshLabels()
+        xBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, p: Int, u: Boolean) { if (u) setX(p) }
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
+        })
+        yBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, p: Int, u: Boolean) { if (u) setY(p) }
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
+        })
+
+        content.addView(xLabel); content.addView(xBar)
+        content.addView(yLabel); content.addView(yBar)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.editor_position)
+            .setView(ScrollView(this).apply { addView(content) })
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+    }
+
+    /**
+     * Pick a long-press alternate (Slice 18). Reuses the macro-step picker, whose
+     * type set is exactly right: everything except MACRO (no timed sequence on a
+     * held gesture) and GESTURE (inert in HID mode) — the same exclusions, for the
+     * same reasons.
+     */
+    private fun pickAltAction(spec: PadButtonSpec) {
+        pickStepAction { type, code, label ->
+            spec.altAction = PadAction(PadActionType.valueOf(type), code)
+            editingView?.rebuild()
+            setDetail(getString(R.string.alt_set_fmt, label))
+        }
     }
 
     /** A real swatch grid (Slice 8) — colored circles beat a list of color names. */
@@ -1650,6 +2001,28 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             },
         )
 
+        val altLabel = TextView(this).apply {
+            text = getString(R.string.settings_alt_hold_fmt, prefs().getInt(PREF_ALT_MS, 350))
+            textSize = 13f
+            setPadding(0, dp(12), 0, 0)
+        }
+        content.addView(altLabel)
+        content.addView(
+            SeekBar(this).apply {
+                max = 35 // 250..600 ms in 10 ms steps
+                progress = ((prefs().getInt(PREF_ALT_MS, 350) - 250) / 10).coerceIn(0, 35)
+                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(sb: SeekBar?, value: Int, fromUser: Boolean) {
+                        val ms = 250 + value * 10
+                        prefs().edit().putInt(PREF_ALT_MS, ms).apply()
+                        altLabel.text = getString(R.string.settings_alt_hold_fmt, ms)
+                    }
+                    override fun onStartTrackingTouch(sb: SeekBar?) {}
+                    override fun onStopTrackingTouch(sb: SeekBar?) {}
+                })
+            },
+        )
+
         content.addView(
             Switch(this).apply {
                 text = getString(R.string.settings_scroll_invert)
@@ -1760,6 +2133,32 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                 textSize = 13f
                 ButtonStyler.flatStyle(this, ButtonStyler.SURFACE, cornerDp = 18f)
                 setOnClickListener { voiceCommandsDialog() }
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+            ),
+        )
+
+        content.addView(
+            Button(this).apply {
+                text = getString(R.string.backup_title)
+                isAllCaps = false
+                textSize = 13f
+                ButtonStyler.flatStyle(this, ButtonStyler.SURFACE, cornerDp = 18f)
+                setOnClickListener { backupAll() }
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+            ),
+        )
+
+        content.addView(
+            Button(this).apply {
+                text = getString(R.string.restore_title)
+                isAllCaps = false
+                textSize = 13f
+                ButtonStyler.flatStyle(this, ButtonStyler.SURFACE, cornerDp = 18f)
+                setOnClickListener { restoreAllDialog() }
             },
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -2318,6 +2717,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         const val PREF_NDS_PEN = "nds_pen"
         const val PREF_SUPPORTER = "supporter_preview"
         const val PREF_TURBO_HZ = "turbo_hz"
+        const val PREF_ALT_MS = "alt_hold_ms"
         const val PREF_SCROLL_INVERT = "scroll_invert"
         const val PREF_VOLKEYS = "volume_keys_mode"
         const val PREF_VOICE = "voice_enabled"
