@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 19: PS2 (DualShock) preset
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: fable-5 · high · feature build
 
@@ -54,4 +54,32 @@ verify release asset + sha256 + stable-keystore log line; poll to terminal.
 
 ## Result
 
-*(fill at close)*
+Shipped as PR #50 (v0.19.0, versionCode 17). Codex two rounds:
+
+- **Round 1 (04:58:50Z, on `8607603`): 3 findings, [conceded] ×3** —
+  Select/Start under the focus-exit chip (moved to y=0.13); CIRCLE rendered as
+  an oval off the 1.5 pad aspect (ButtonStyler now inscribes a TRUE centered
+  min-dimension circle when both laid-out dims are known — visual only, touch
+  bounds untouched); D-pad/left-stick 5 % overlap with the stick winning
+  touches by FrameLayout z-order (geometry re-cut, **all 13 rects proven
+  pairwise disjoint — by a one-off session script, NOT a committed test**: it
+  binds the committed numbers only, and any future geometry edit must re-run
+  it by hand; committing it as a repo checker was considered and deferred —
+  the rect table would live twice until the app module has a test harness).
+- **Round 2 (05:05:22Z, on `83c8874`): 1 finding, [conceded] ×1** — the
+  overlay call site (`OverlayPlayService.kt:101`) still passed height only, so
+  Play-on-this-phone circles would have stayed ovals (no later onLayout pass
+  there). Independently surfaced by the estate's owner-review hook minutes
+  earlier — the fix (pass the already-computed `bw`) was already in hand and
+  lands in THIS flip commit, dispositioned under the two-round cap, stated
+  not inferred. **Lesson recorded:** the round-1 fix was described "app-wide"
+  after verifying two of three `ButtonStyler.apply` call sites — the word
+  outran the grep; the grep is now run and the third site fixed.
+- **One deliberate behavior change to flag:** CIRCLE buttons in EXISTING user
+  layouts change visually (stretched oval → true centered circle, remote pads
+  and overlay alike). Judgment call, recorded: a shape named CIRCLE drawing an
+  ellipse is nearer defect than contract; hit-areas are unchanged.
+
+Verified: compile-check 102 classes / 22 files (three runs: feature, round-1
+fixes, overlay fix) · CI green on the PR heads · release verification appended
+to the fm card at tag time (this card flips before the tag exists).

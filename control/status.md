@@ -1,12 +1,12 @@
 # product-forge · status
 
-updated: 2026-08-15T04:51:58Z
-phase: phone-controller Slice 19 IN PROGRESS — PS2 (DualShock) preset (v0.19.0)
+updated: 2026-08-15T05:06:49Z
+phase: phone-controller Slice 19 SHIPPED — PS2 (DualShock) preset (v0.19.0)
 lane: builder (phone-controller) · owner-live session 2026-08-14 (hub-attached, Slice-4 precedent)
 health: green
 
 ## This session (2026-08-14, owner-live directive — second slice)
-**Slice 19 in progress:** owner ask: a PS2 preset. DualShock-2 starter template
+**Slice 19 SHIPPED (PR #50):** owner ask: a PS2 preset. DualShock-2 starter template
 (diamond glyphs + colors, D-pad, both sticks, four shoulders, Start/Select);
 no descriptor change (L2/R2 already bits 8/9; L3/R3 deliberately out — re-pair
 cost). Card: `.sessions/2026-08-15-phone-controller-slice19-ps2-preset.md`.

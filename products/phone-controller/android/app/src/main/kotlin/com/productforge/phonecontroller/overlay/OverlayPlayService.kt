@@ -98,7 +98,7 @@ class OverlayPlayService : Service() {
             val button = Button(this).apply {
                 text = spec.label
                 isAllCaps = false
-                ButtonStyler.apply(this, spec, bh)
+                ButtonStyler.apply(this, spec, bh, bw) // both dims → true circles here too
                 setOnTouchListener(TapDispatch(spec))
             }
             val lp = WindowManager.LayoutParams(
