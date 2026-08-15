@@ -278,6 +278,12 @@ data class CustomLayout(
     companion object {
         const val SHARE_VERSION = 1
 
+        /** DualShock glyph colors (Slice 19) — muted toward the dark theme. */
+        private val PS_TRIANGLE_GREEN = 0xFF3FA24A.toInt()
+        private val PS_CIRCLE_RED = 0xFFD0342C.toInt()
+        private val PS_CROSS_BLUE = 0xFF4A90D9.toInt()
+        private val PS_SQUARE_PINK = 0xFFC868A8.toInt()
+
         fun fromJson(o: JSONObject): CustomLayout {
             val buttons = mutableListOf<PadButtonSpec>()
             val arr = o.getJSONArray("buttons")
@@ -315,9 +321,16 @@ data class CustomLayout(
         private fun gp(x: Float, y: Float, w: Float, h: Float, label: String, code: String) =
             PadButtonSpec(x, y, w, h, label, PadAction(PadActionType.GAMEPAD, code))
 
-        /** Starter templates offered when creating a new layout (Slice 15/17). */
+        /** A PS-diamond face button: round, glyph-colored (Slice 19). */
+        private fun ps(x: Float, y: Float, label: String, code: String, color: Int) =
+            PadButtonSpec(
+                x, y, 0.10f, 0.15f, label, PadAction(PadActionType.GAMEPAD, code),
+                colorArgb = color, shape = PadShape.CIRCLE, textSizeSp = 18,
+            )
+
+        /** Starter templates offered when creating a new layout (Slice 15/17/19). */
         fun templateKinds(): List<String> =
-            listOf("Blank", "GBA", "Full gamepad", "Analog + sticks", "NDS (touch + pad)")
+            listOf("Blank", "GBA", "Full gamepad", "PS2 (DualShock)", "Analog + sticks", "NDS (touch + pad)")
 
         fun template(id: String, name: String, kind: String = "GBA"): CustomLayout = when (kind) {
             "Blank" -> CustomLayout(id, name, mutableListOf())
@@ -351,6 +364,40 @@ data class CustomLayout(
                     gp(0.52f, 0.84f, 0.14f, 0.14f, "START", "START"),
                 ),
                 widgets = mutableListOf(PadWidgetSpec(PadWidgetType.DPAD, 0.02f, 0.28f, 0.30f, 0.44f)),
+            )
+            // DualShock-2 arrangement (Slice 19): D-pad upper-left, PS diamond
+            // upper-right (round, glyph-colored), BOTH sticks lower-center (the
+            // DS2's signature stick placement), four digital shoulders stacked in
+            // the corners (L2/R2 are descriptor bits 8/9 — no descriptor change),
+            // Start/Select top-center. Positional button mapping (✕=south/A,
+            // ○=east/B, □=west/X, △=north/Y per the enum's BTN_* comments);
+            // emulators bind per-button anyway. No L3/R3: stick-click bits are
+            // not in the descriptor, and adding them forces a re-pair fleet-wide.
+            // Geometry re-cut after Codex on PR #50: Select/Start ride at y=0.13 so
+            // focus mode's top-center exit chip (44 dp, ~12 % of a portrait width)
+            // cannot intercept them; every interactive rect is pairwise DISJOINT —
+            // FrameLayout gives the later child the overlap, so a preset must not
+            // overlap at all (D-pad x ≤ 0.27 < left stick x ≥ 0.28; right stick
+            // x ≤ 0.78 < ✕ x ≥ 0.79; sticks y ≥ 0.58 > □ bottom 0.55).
+            "PS2 (DualShock)" -> CustomLayout(
+                id, name,
+                mutableListOf(
+                    gp(0.00f, 0.00f, 0.15f, 0.11f, "L2", "L2"),
+                    gp(0.00f, 0.12f, 0.15f, 0.11f, "L1", "L1"),
+                    gp(0.85f, 0.00f, 0.15f, 0.11f, "R2", "R2"),
+                    gp(0.85f, 0.12f, 0.15f, 0.11f, "R1", "R1"),
+                    gp(0.30f, 0.13f, 0.16f, 0.10f, "SELECT", "SELECT"),
+                    gp(0.54f, 0.13f, 0.16f, 0.10f, "START", "START"),
+                    ps(0.79f, 0.26f, "△", "Y", PS_TRIANGLE_GREEN),
+                    ps(0.89f, 0.40f, "○", "B", PS_CIRCLE_RED),
+                    ps(0.79f, 0.54f, "✕", "A", PS_CROSS_BLUE),
+                    ps(0.69f, 0.40f, "□", "X", PS_SQUARE_PINK),
+                ),
+                widgets = mutableListOf(
+                    PadWidgetSpec(PadWidgetType.DPAD, 0.01f, 0.26f, 0.26f, 0.38f),
+                    PadWidgetSpec(PadWidgetType.LEFT_STICK, 0.28f, 0.58f, 0.24f, 0.40f),
+                    PadWidgetSpec(PadWidgetType.RIGHT_STICK, 0.54f, 0.58f, 0.24f, 0.40f),
+                ),
             )
             "Analog + sticks" -> CustomLayout(
                 id, name,

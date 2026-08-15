@@ -1,11 +1,16 @@
 # product-forge · status
 
-updated: 2026-08-14T10:13:56Z
-phase: phone-controller Slice 18 SHIPPED — per-widget config + long-press alternates + fine position + backup-everything (v0.18.0)
+updated: 2026-08-15T05:06:49Z
+phase: phone-controller Slice 19 SHIPPED — PS2 (DualShock) preset (v0.19.0)
 lane: builder (phone-controller) · owner-live session 2026-08-14 (hub-attached, Slice-4 precedent)
 health: green
 
-## This session (2026-08-14, owner-live directive)
+## This session (2026-08-14, owner-live directive — second slice)
+**Slice 19 SHIPPED (PR #50):** owner ask: a PS2 preset. DualShock-2 starter template
+(diamond glyphs + colors, D-pad, both sticks, four shoulders, Start/Select);
+no descriptor change (L2/R2 already bits 8/9; L3/R3 deliberately out — re-pair
+cost). Card: `.sessions/2026-08-15-phone-controller-slice19-ps2-preset.md`.
+
 **Slice 18 SHIPPED (2026-08-14, PR #49):** owner ask: make the app more customizable.
 Per-widget behavior config (stick deadzone/invert-Y, D-pad 4/8-way, touchpad
 speed+pen — also fixes custom touchpads ignoring global sensitivity/invert),
