@@ -9,7 +9,7 @@ health: green
 **Slice 19 in progress:** owner ask: a PS2 preset. DualShock-2 starter template
 (diamond glyphs + colors, D-pad, both sticks, four shoulders, Start/Select);
 no descriptor change (L2/R2 already bits 8/9; L3/R3 deliberately out — re-pair
-cost). Card: `.sessions/2026-08-14-phone-controller-slice19-ps2-preset.md`.
+cost). Card: `.sessions/2026-08-15-phone-controller-slice19-ps2-preset.md`.
 
 **Slice 18 SHIPPED (2026-08-14, PR #49):** owner ask: make the app more customizable.
 Per-widget behavior config (stick deadzone/invert-Y, D-pad 4/8-way, touchpad

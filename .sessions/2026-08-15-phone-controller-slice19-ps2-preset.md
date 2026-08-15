@@ -4,7 +4,7 @@
 
 📊 Model: fable-5 · high · feature build
 
-Time: 2026-08-14 · lane: builder (phone-controller · slice 19) · owner-live
+Time: 2026-08-15 · lane: builder (phone-controller · slice 19) · owner-live
 directive, same conversation as Slice 18
 
 💡 Session idea: owner, live: *"Improve the controller so it has a ps2 preset."*

@@ -68,7 +68,12 @@ browser/files app when prompted (normal sideload flow — this app is not on a s
      phone when you enable gyro; **long-press the Gyro button to recenter** mid-game,
      or use the Recenter button in Settings → Gyro….
    - **Your own layouts** — Settings → *Layouts…* → New: **start from a template**
-     (Blank / GBA / Full gamepad / Analog + sticks / NDS) — customise a preset by starting from it, then drag anything anywhere.
+     (Blank / GBA / Full gamepad / **PS2 (DualShock)** / Analog + sticks / NDS) — customise a preset by starting from it, then drag anything anywhere.
+     The PS2 preset is a DualShock-2 arrangement: glyph-colored round △ ○ ✕ □
+     diamond, D-pad, BOTH analog sticks center-low, all four shoulders
+     (L1/L2/R1/R2 — digital), Start/Select — made for PS2 emulators
+     (AetherSX2-style: map each button once in the emulator's controller
+     settings; the mapping persists).
      Add **buttons** (any action — gamepad / D-pad / keys / modifiers / media /
      mouse / key combos / **macros**) *and* **widgets** via **+ Stick / D-pad…**:
      a **left/right analog stick**, an **8-way D-pad** (with diagonals — press
@@ -226,7 +231,10 @@ gestures (S13) → gyro targets + visualizer (S14) → placeable widgets + NDS
 template (S15) → true multi-touch (S16) → editor discard + customize-a-preset +
 fine size sliders (S17) → **deeper customization** (S18): per-widget behavior
 (stick deadzone/invert-Y, D-pad 4/8-way, touchpad speed/pen), long-press
-alternate actions, fine position sliders, backup/restore-everything.
+alternate actions, fine position sliders, backup/restore-everything →
+**PS2 (DualShock) preset** (S19): glyph-colored diamond, dual sticks, four
+digital shoulders — no HID descriptor change (L3/R3 stick-clicks deliberately
+deferred: they would need a descriptor revision, which forces a re-pair).
 Remaining candidates:
 
 - BLE-HOGP fallback transport for `BLE_HOGP_FALLBACK`-verdict devices.
