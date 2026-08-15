@@ -373,6 +373,12 @@ data class CustomLayout(
             // ○=east/B, □=west/X, △=north/Y per the enum's BTN_* comments);
             // emulators bind per-button anyway. No L3/R3: stick-click bits are
             // not in the descriptor, and adding them forces a re-pair fleet-wide.
+            // Geometry re-cut after Codex on PR #50: Select/Start ride at y=0.13 so
+            // focus mode's top-center exit chip (44 dp, ~12 % of a portrait width)
+            // cannot intercept them; every interactive rect is pairwise DISJOINT —
+            // FrameLayout gives the later child the overlap, so a preset must not
+            // overlap at all (D-pad x ≤ 0.27 < left stick x ≥ 0.28; right stick
+            // x ≤ 0.78 < ✕ x ≥ 0.79; sticks y ≥ 0.58 > □ bottom 0.55).
             "PS2 (DualShock)" -> CustomLayout(
                 id, name,
                 mutableListOf(
@@ -380,17 +386,17 @@ data class CustomLayout(
                     gp(0.00f, 0.12f, 0.15f, 0.11f, "L1", "L1"),
                     gp(0.85f, 0.00f, 0.15f, 0.11f, "R2", "R2"),
                     gp(0.85f, 0.12f, 0.15f, 0.11f, "R1", "R1"),
-                    gp(0.32f, 0.02f, 0.16f, 0.10f, "SELECT", "SELECT"),
-                    gp(0.52f, 0.02f, 0.16f, 0.10f, "START", "START"),
+                    gp(0.30f, 0.13f, 0.16f, 0.10f, "SELECT", "SELECT"),
+                    gp(0.54f, 0.13f, 0.16f, 0.10f, "START", "START"),
                     ps(0.79f, 0.26f, "△", "Y", PS_TRIANGLE_GREEN),
                     ps(0.89f, 0.40f, "○", "B", PS_CIRCLE_RED),
                     ps(0.79f, 0.54f, "✕", "A", PS_CROSS_BLUE),
                     ps(0.69f, 0.40f, "□", "X", PS_SQUARE_PINK),
                 ),
                 widgets = mutableListOf(
-                    PadWidgetSpec(PadWidgetType.DPAD, 0.01f, 0.28f, 0.28f, 0.42f),
-                    PadWidgetSpec(PadWidgetType.LEFT_STICK, 0.24f, 0.56f, 0.25f, 0.42f),
-                    PadWidgetSpec(PadWidgetType.RIGHT_STICK, 0.52f, 0.56f, 0.25f, 0.42f),
+                    PadWidgetSpec(PadWidgetType.DPAD, 0.01f, 0.26f, 0.26f, 0.38f),
+                    PadWidgetSpec(PadWidgetType.LEFT_STICK, 0.28f, 0.58f, 0.24f, 0.40f),
+                    PadWidgetSpec(PadWidgetType.RIGHT_STICK, 0.54f, 0.58f, 0.24f, 0.40f),
                 ),
             )
             "Analog + sticks" -> CustomLayout(

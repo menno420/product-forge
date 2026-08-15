@@ -137,8 +137,15 @@ object ButtonStyler {
      * color renders the shared dark SURFACE so custom pads match the built-in look.
      * Style-pack fills (GRADIENT/GLOW) render only while [Supporter.unlocked]; locked
      * specs fall back to FLAT — visibly complete, never broken.
+     *
+     * [widthPx] (Slice 19, Codex on PR #50): with BOTH laid-out dimensions known, a
+     * CIRCLE renders as a TRUE centered circle (diameter = the smaller dimension)
+     * instead of an oval stretched to the bounds — percent sizing can't promise a
+     * square rect on every pad aspect. Touch bounds are unchanged; this is visual
+     * only. With width unknown (pre-layout), the oval fallback stands until the
+     * onLayout pass re-applies with real dimensions.
      */
-    fun apply(button: Button, spec: PadButtonSpec, heightPx: Int) {
+    fun apply(button: Button, spec: PadButtonSpec, heightPx: Int, widthPx: Int = 0) {
         button.maxLines = 2
         button.setAutoSizeTextTypeUniformWithConfiguration(
             8, maxOf(9, spec.textSizeSp), 1, TypedValue.COMPLEX_UNIT_SP,
@@ -165,7 +172,15 @@ object ButtonStyler {
             addState(intArrayOf(android.R.attr.state_pressed), pressed)
             addState(intArrayOf(), normal)
         }
-        button.background = states
+        button.background =
+            if (spec.shape == PadShape.CIRCLE && heightPx > 0 && widthPx > 0 && heightPx != widthPx) {
+                val d = minOf(heightPx, widthPx)
+                val insetH = (widthPx - d) / 2
+                val insetV = (heightPx - d) / 2
+                InsetDrawable(states, insetH, insetV, insetH, insetV)
+            } else {
+                states
+            }
         button.setTextColor(textColorFor(color))
         button.stateListAnimator = null
     }

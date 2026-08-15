@@ -261,7 +261,7 @@ class CustomPadView(
             val bh = (spec.hPct * h).toInt()
             val bx = (spec.xPct * w).toInt()
             val by = (spec.yPct * h).toInt()
-            ButtonStyler.apply(button, spec, bh) // real height → correct corner radii
+            ButtonStyler.apply(button, spec, bh, bw) // real dims → radii + true circles
             button.measure(
                 MeasureSpec.makeMeasureSpec(bw, MeasureSpec.EXACTLY),
                 MeasureSpec.makeMeasureSpec(bh, MeasureSpec.EXACTLY),
