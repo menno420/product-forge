@@ -18,10 +18,11 @@ target. Based on the Ideas-Lab plan
 
 ## State
 
-**beta · field-verified against a real host.** Slices 1–18 are built and CI-proven: the
+**beta · field-verified against a real host.** Slices 1–20 are built and CI-proven: the
 capability verdict engine (portable Python + lockstep Kotlin port), the real
 `BluetoothHidDevice` transport, a **combo HID device** (keyboard + gamepad + mouse +
-media remote), the controller UI (ten built-in layouts + a full custom-layout
+media remote), the controller UI (eleven ready-to-play layouts — the PS2 pad
+among them — plus a full custom-layout
 editor, slide-over game pads, analog sticks + gyro, per-widget behavior config,
 long-press alternate actions, dark controller theme, focus
 mode, landscape mode, rotation-safe connection, backup/restore-everything), and a
@@ -96,6 +97,11 @@ browser/files app when prompted (normal sideload flow — this app is not on a s
    - **Touchpad** — drag to move the host's pointer (on an Android target a system
      cursor appears), tap = click, two-finger tap = right-click, two-finger drag =
      scroll (natural direction), hold LEFT + drag = drag-select; speed slider below.
+   - **PS2 pad** — the DualShock-2 arrangement, ready to play straight from
+     this list (Slice 20): glyph-colored round △ ○ ✕ □ diamond, D-pad, both
+     analog sticks center-low, all four shoulders, Start/Select. To rearrange
+     or restyle it, create a copy via Settings → Layouts… → New → *PS2
+     (DualShock)* — the customizable template behind this pad.
    - **NDS (touch + pad)** — a Nintendo-DS-style combo: touch-screen area plus
      D-pad, X/A/B/Y (Nintendo positions), L/R, Start/Select. The touch area
      defaults to **Pen** mode — finger contact = held left button, so drags DRAW

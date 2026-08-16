@@ -5,11 +5,11 @@ phase: phone-controller Slice 20 IN PROGRESS — PS2 pad in the layout spinner (
 lane: builder (phone-controller) · owner-live session 2026-08-14 (hub-attached, Slice-4 precedent)
 health: green
 
-## This session (2026-08-15, owner-live directive — third slice)
+## This session (2026-08-16, owner-live directive — third slice)
 **Slice 20 in progress:** owner screenshot: PS2 not visible in the layout
 spinner (Slice 19 made it a New-layout template only). Fix: "PS2 pad" as a
 directly selectable spinner row rendered from the template (key class `t:`),
-after NDS. Card: `.sessions/2026-08-15-phone-controller-slice20-ps2-spinner.md`.
+after NDS. Card: `.sessions/2026-08-16-phone-controller-slice20-ps2-spinner.md`.
 
 ## Earlier (2026-08-14, owner-live directive — second slice)
 **Slice 19 SHIPPED (PR #50):** owner ask: a PS2 preset. DualShock-2 starter template

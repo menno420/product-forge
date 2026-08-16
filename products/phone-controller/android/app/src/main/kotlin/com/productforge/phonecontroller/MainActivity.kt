@@ -600,11 +600,29 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         SHORTCUTS(R.string.layout_shortcuts),
     }
 
-    private fun selectionKeys(): List<String> =
-        Pad.entries.map { "b:${it.ordinal}" } + layoutStore.all().map { "c:${it.id}" }
+    /**
+     * Template-backed spinner pads (Slice 20): kind (the template() key) → display
+     * label. These render straight from CustomLayout.template() with no saved
+     * layout — the owner's screenshot showed the New-layout-only PS2 preset was
+     * effectively invisible; a pad you cannot see in THIS list does not exist.
+     * Only kinds that don't mirror an existing built-in earn a row.
+     */
+    private fun templatePads(): List<Pair<String, Int>> =
+        listOf("PS2 (DualShock)" to R.string.layout_ps2)
 
-    private fun selectionLabels(): List<String> =
-        Pad.entries.map { getString(it.labelRes) } + layoutStore.all().map { it.name }
+    private fun selectionKeys(): List<String> = buildList {
+        Pad.entries.forEach { add("b:${it.ordinal}") }
+        // Console-pad grouping: template pads ride directly after NDS. Keys are
+        // position-free strings, so the splice breaks no saved selections.
+        addAll(Pad.NDS.ordinal + 1, templatePads().map { "t:${it.first}" })
+        layoutStore.all().forEach { add("c:${it.id}") }
+    }
+
+    private fun selectionLabels(): List<String> = buildList {
+        Pad.entries.forEach { add(getString(it.labelRes)) }
+        addAll(Pad.NDS.ordinal + 1, templatePads().map { getString(it.second) })
+        layoutStore.all().forEach { add(it.name) }
+    }
 
     private fun selectionExists(key: String): Boolean = key in selectionKeys()
 
@@ -652,7 +670,25 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         }
 
         padContainer.removeAllViews()
-        val view: View = if (key.startsWith("c:")) {
+        val view: View = if (key.startsWith("t:")) {
+            // A template pad (Slice 20): rendered straight from the starter
+            // template, never persisted. Customizing still goes through
+            // Layouts → New → the same template (customize-a-preset, Slice 17).
+            val kind = key.removePrefix("t:")
+            val labelRes = templatePads().firstOrNull { it.first == kind }?.second
+            if (labelRes == null) {
+                showSelection("b:0")
+                return
+            }
+            CustomPadView(
+                this, CustomLayout.template("tpl:$kind", getString(labelRes), kind),
+                editMode = false, actionResolver = ::resolveAction, turbo = turbo,
+                host = this, gyro = gyroToggle, deadzonePct = deadzone(),
+                touchpad = touchpadConfig,
+                altResolver = { a -> resolveRaw(a.type.name, a.code) ?: { _ -> } },
+                altHoldMs = altHoldMs(),
+            )
+        } else if (key.startsWith("c:")) {
             val layout = layoutStore.byId(key.removePrefix("c:"))
             if (layout == null) {
                 showSelection("b:0")

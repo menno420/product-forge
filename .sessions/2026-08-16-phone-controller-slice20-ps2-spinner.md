@@ -4,7 +4,7 @@
 
 📊 Model: fable-5 · high · feature build
 
-Time: 2026-08-15 · lane: builder (phone-controller · slice 20) · owner-live
+Time: 2026-08-16 · lane: builder (phone-controller · slice 20) · owner-live
 directive (screenshot feedback on Slice 19), same conversation
 
 💡 Session idea: owner sent the layout-spinner screenshot: *"It's not visible

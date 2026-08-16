@@ -34,8 +34,8 @@ android {
         applicationId = "com.productforge.phonecontroller"
         minSdk = 28          // BluetoothHidDevice requires API 28 (Android 9)
         targetSdk = 34
-        versionCode = 17
-        versionName = "0.19.0"
+        versionCode = 18
+        versionName = "0.20.0"
     }
 
     signingConfigs {
