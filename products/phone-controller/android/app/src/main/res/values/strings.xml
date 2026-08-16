@@ -243,6 +243,9 @@
     <!-- %1$s = name, %2$d = duration in ms. -->
     <string name="gesture_row_fmt">%1$s · %2$d ms</string>
 
+    <!-- PS2 pad in the spinner (Slice 20) -->
+    <string name="layout_ps2">PS2 pad</string>
+
     <!-- Deeper customization (Slice 18) -->
     <string name="editor_position">Position…</string>
     <!-- %1$s = percent, e.g. "24%". -->
