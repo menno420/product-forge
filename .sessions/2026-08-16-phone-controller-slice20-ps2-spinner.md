@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 20: PS2 pad in the layout spinner
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: fable-5 · high · feature build
 
@@ -52,4 +52,13 @@ fm records follow.
 
 ## Result
 
-*(fill at close)*
+Shipped as PR #51 (v0.20.0, versionCode 18). Codex one round (07:35:24Z, on
+`07ee1c1`): **1 finding, [conceded] ×1** — the Settings-close refresh condition
+covered `b:ANALOG` and `c:` but not the new `t:` class, so a template pad kept
+a stale global deadzone / hold-time until a layout switch. The same staleness
+class Codex caught on #49 for `c:`, recurring for the key class this slice
+introduced; fixed in the flip commit (condition now names all three), which
+lands dispositioned under the cap — its diff is this one-line fix + this
+close-out. compile-check 103 classes / 22 files (both runs). Release
+verification (tag, assets, stable-keystore line, signer-cert match vs
+v0.19.0) recorded fm-side at tag time.

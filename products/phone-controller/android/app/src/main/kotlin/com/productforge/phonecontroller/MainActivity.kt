@@ -2242,11 +2242,13 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             .setView(ScrollView(this).apply { addView(content) })
             .setPositiveButton(R.string.layouts_title) { _, _ -> openLayoutManager() }
             .setNegativeButton(android.R.string.ok) { _, _ ->
-                // Deadzone + long-press hold time apply on pad rebuild. Custom pads
-                // capture both at construction, so refresh them too — not only the
-                // built-in analog pad (Codex, PR #49: the hold-time slider otherwise
-                // takes effect only after a layout switch).
-                if (currentSelection == "b:${Pad.ANALOG.ordinal}" || currentSelection.startsWith("c:")) {
+                // Deadzone + long-press hold time apply on pad rebuild. Custom AND
+                // template pads capture both at construction, so refresh them too —
+                // not only the built-in analog pad (Codex, PR #49 for c:, PR #51 for
+                // t: — the same staleness class recurred for the new key class).
+                if (currentSelection == "b:${Pad.ANALOG.ordinal}" ||
+                    currentSelection.startsWith("c:") || currentSelection.startsWith("t:")
+                ) {
                     showSelection(currentSelection)
                 }
             }
