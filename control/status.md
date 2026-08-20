@@ -1,7 +1,7 @@
 # product-forge · status
 
-updated: 2026-08-20T19:39:26Z
-phase: phone-controller Slice 22 IN PROGRESS — foldable support (born-red); Slice 21 shipped (v0.21.0)
+updated: 2026-08-20T20:04:47Z
+phase: phone-controller Slices 21+22 SHIPPED — keyboard (v0.21.0) + foldables (v0.22.0)
 lane: builder (phone-controller) · owner directive 2026-08-16 via continuation prompt
 health: green
 
@@ -19,11 +19,13 @@ BEFORE code (owner's "think about this"). Codex 2 rounds, 6 findings:
 stateless-tap exemption + presence-race reconcile) · [partial]×1 (README
 overclaim fixed; macro-bindings = recorded candidate) · [survived]×1
 (cross-producer holds = the app's standing transport model; producer-wide
-ownership recorded as candidate). **Slice 22 in progress (this branch):** foldables —
-`smallestScreenSize|density` configChanges hardening (fold/unfold currently
-RECREATES and drops the connection) + per-screen layout memory
-(sw600 bucket, rotation-invariant), designed on the Slice-21 card § D5.
-Card: `.sessions/2026-08-20-phone-controller-slice22-foldables.md`.
+ownership recorded as candidate). **Slice 22 SHIPPED (PR #53):** foldables — `smallestScreenSize|density`
+configChanges hardening (a fold used to RECREATE the activity and drop the
+live connection) + per-screen layout memory (sw600 bucket,
+rotation-invariant; compact pad on the cover screen, full pad inside,
+automatic). Codex 2 rounds: R1 [conceded]×2 (onCreate bucket restore ·
+pending flip through the editor), R2 clean. Designed on the Slice-21 card
+§ D5. Card: `.sessions/2026-08-20-phone-controller-slice22-foldables.md`.
 Card: `.sessions/2026-08-20-phone-controller-slice21-hardware-keyboard.md`.
 
 ## Earlier (2026-08-16, owner-live directive — third slice)

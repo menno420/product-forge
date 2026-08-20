@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 22: foldable support (fold-safe connection + per-screen layout memory)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: fable-5 · high · feature build
 
@@ -68,4 +68,28 @@ again — each screen restores its own last layout.
 
 ## Result
 
-*(filled at close)*
+Shipped as PR #53 (v0.22.0, versionCode 20). Both scope items landed:
+`smallestScreenSize|density` configChanges hardening (the fold no longer
+recreates the activity and drops the connection — REASONED fix class,
+owner device steps above) and per-screen layout memory (sw600 bucket,
+rotation-invariant, written by every showSelection, restored on bucket
+flips through the full guard path).
+
+**Codex: two rounds — round 1 two findings, [conceded] ×2; round 2 clean**
+("Didn't find any major issues", on `8eeda27`). Round 1 (on `e743cf0`,
+~6.5 min after the explicit trigger): (1) process death is not fold state —
+onCreate restarting on the other screen overwrote that bucket's memory
+with the global selection; fixed by retargeting at THIS screen's memory
+via the shared `applyScreenBucketSelection()` before the first buildUi.
+(2) a fold arriving while the editor was open silently consumed the
+bucket flip, so cancelling wrote the old screen's pre-edit selection into
+the new bucket; the flip now goes PENDING — cancel restores the new
+screen's own memory, any explicit selection (Save / spinner pick)
+consumes the flip, last event wins.
+
+Verification: Python 26/26 · JVM 76/76 · compile-check OK 112/24 · gate
+red exactly on this card until this flip (REAL exit codes — an earlier
+in-session $?-after-a-pipe misread is named in the fm card, not hidden) ·
+CI green on the feature head · squash-merge on green · tag
+`phone-controller-v0.22.0` → release verification recorded at tag time
+(assets + sha256 + stable-keystore line + signer-cert match vs v0.21.0).
