@@ -48,11 +48,16 @@
              (portrait = stacked chrome, landscape = side panel + full-height pad).
              `keyboard` (Slice 21): plugging/unplugging a hardware keyboard is a
              keyboard-type config change — undeclared it would RECREATE and drop
-             the connection exactly like an undeclared rotation. -->
+             the connection exactly like an undeclared rotation.
+             `smallestScreenSize|density` (Slice 22): folding/unfolding moves the
+             app between displays with different sw-dp and usually density —
+             undeclared, a fold mid-game recreated the activity and dropped the
+             live connection; declared, onConfigurationChanged re-lays the
+             percent-based UI (and restores that screen's remembered layout). -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard">
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|smallestScreenSize|density">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
