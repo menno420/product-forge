@@ -22,10 +22,13 @@
  *          vocabulary (the "input/controls" half); unbound keys are swallowed
  *          no-ops so the pad UI stays inert under stray presses.
  *
- * Safety: every captured DOWN stores its release closure; releaseAll() fires
- * them on mode change, keyboard detach, host disconnect, onPause and
- * window-focus loss (a dialog opening mid-hold moves the UP into the dialog's
- * window — the focus-loss hook is what guarantees no stuck key).
+ * Safety: every captured DOWN is tracked in a reference-counted HeldKeyLedger
+ * keyed by (device, key) — actions shared by several keys (W and ↑ both on
+ * DPAD UP; two keyboards' Enter) fire on the first holder and release on the
+ * LAST (Codex on pf #52, finding 1). releaseAll() fires on mode change, host
+ * disconnect, onPause and window-focus loss (a dialog opening mid-hold moves
+ * the UP into the dialog's window); a detaching device releases exactly its
+ * own holds (finding 2 — its UPs can never arrive).
  */
 package com.productforge.phonecontroller.input
 
@@ -34,6 +37,7 @@ import android.hardware.input.InputManager
 import android.os.Build
 import android.view.InputDevice
 import android.view.KeyEvent
+import com.productforge.phonecontroller.hid.HeldKeyLedger
 import com.productforge.phonecontroller.hid.KeyEventMap
 import com.productforge.phonecontroller.hid.MediaButton
 
@@ -54,8 +58,8 @@ class HardwareKeyboard(
 
     enum class KeyMode { OFF, TYPE, PAD }
 
-    /** Release closures for every key currently captured-down, by keycode. */
-    private val pressed = HashMap<Int, (Boolean) -> Unit>()
+    /** Ref-counted (device, key) hold tracking — the release-safety core. */
+    private val ledger = HeldKeyLedger()
 
     private var bindingCache: Map<Int, KeyBinding>? = null
     private var lastPresence: Boolean? = null
@@ -88,22 +92,25 @@ class HardwareKeyboard(
     fun handle(event: KeyEvent): Boolean {
         if (mode == KeyMode.OFF) return false
         if (event.keyCode in NEVER_CAPTURE) return false
-        // A key we hold must always see its UP, whatever changed mid-hold.
+        // A key we hold must always see its UP, whatever changed mid-hold —
+        // the ledger releases the shared action only on its LAST holder.
         if (event.action == KeyEvent.ACTION_UP) {
-            pressed.remove(event.keyCode)?.let { release ->
-                release(false)
-                return true
-            }
+            if (ledger.release(event.deviceId, event.keyCode)) return true
         }
         if (!isExternalKeyboard(event.device)) return false
         if (!captureAllowed()) return false
         return when (event.action) {
             KeyEvent.ACTION_DOWN -> {
                 // Swallow auto-repeats and double-downs; the held report repeats host-side.
-                if (event.repeatCount > 0 || event.keyCode in pressed) return true
-                val action = actionForDown(event.keyCode) ?: NOOP
-                pressed[event.keyCode] = action
-                action(true)
+                if (event.repeatCount > 0 || ledger.isPressed(event.deviceId, event.keyCode)) {
+                    return true
+                }
+                val resolved = actionForDown(event.keyCode)
+                val identity = resolved?.first
+                val action = resolved?.second ?: NOOP
+                if (ledger.press(event.deviceId, event.keyCode, identity) { action(false) }) {
+                    action(true)
+                }
                 true
             }
             // Untracked UP of an eligible key (pressed before the mode engaged):
@@ -113,13 +120,8 @@ class HardwareKeyboard(
         }
     }
 
-    /** Release every captured key (mode change, detach, disconnect, focus loss). */
-    fun releaseAll() {
-        if (pressed.isEmpty()) return
-        val actions = pressed.values.toList()
-        pressed.clear()
-        actions.forEach { it(false) }
-    }
+    /** Release every captured key (mode change, disconnect, pause, focus loss). */
+    fun releaseAll() = ledger.releaseAll()
 
     /** Start watching attach/detach; safe to call once from onCreate (main thread). */
     fun startWatching() {
@@ -139,20 +141,28 @@ class HardwareKeyboard(
     fun bindable(event: KeyEvent): Boolean =
         event.keyCode !in NEVER_CAPTURE && isExternalKeyboard(event.device)
 
-    private fun actionForDown(keyCode: Int): ((Boolean) -> Unit)? = when (mode) {
+    /**
+     * (action identity, action) for a captured DOWN, or null for a swallowed
+     * no-op. The identity is what the ledger reference-counts: keys sharing an
+     * underlying HID state share it (same usage, same modifier mask, same
+     * bound action), so a sibling key's UP can never release a held input.
+     */
+    private fun actionForDown(keyCode: Int): Pair<String, (Boolean) -> Unit>? = when (mode) {
         KeyMode.OFF -> null
         KeyMode.TYPE -> {
             val modifier = KeyEventMap.modifierMaskFor(keyCode)
             val usage = KeyEventMap.usageFor(keyCode)
             val media = KeyEventMap.mediaFor(keyCode)
             when {
-                modifier != null -> ({ down -> typeModifier(modifier, down) })
-                usage != null -> ({ down -> typeKey(usage, down) })
-                media != null -> ({ down -> if (down) mediaTap(media) })
+                modifier != null -> "m:$modifier" to { down: Boolean -> typeModifier(modifier, down) }
+                usage != null -> "k:$usage" to { down: Boolean -> typeKey(usage, down) }
+                media != null -> "media:${media.name}" to { down: Boolean -> if (down) mediaTap(media) }
                 else -> null // unmappable: swallowed silently (positions, not glyphs)
             }
         }
-        KeyMode.PAD -> bindingMap()[keyCode]?.let { resolveBinding(it) }
+        KeyMode.PAD -> bindingMap()[keyCode]?.let { b ->
+            resolveBinding(b)?.let { action -> "a:${b.actionType}:${b.actionCode}" to action }
+        }
     }
 
     private fun bindingMap(): Map<Int, KeyBinding> =
@@ -169,7 +179,13 @@ class HardwareKeyboard(
 
     private val deviceListener = object : InputManager.InputDeviceListener {
         override fun onInputDeviceAdded(deviceId: Int) = presenceCheck()
-        override fun onInputDeviceRemoved(deviceId: Int) = presenceCheck()
+        override fun onInputDeviceRemoved(deviceId: Int) {
+            // The device's UPs can never arrive — release exactly ITS holds,
+            // even when another keyboard keeps aggregate presence true
+            // (Codex on pf #52, finding 2).
+            ledger.releaseDevice(deviceId)
+            presenceCheck()
+        }
         override fun onInputDeviceChanged(deviceId: Int) = presenceCheck()
     }
 
@@ -177,7 +193,7 @@ class HardwareKeyboard(
         val present = keyboardPresent()
         if (present != lastPresence) {
             lastPresence = present
-            if (!present) releaseAll() // the device is gone; its UPs never arrive
+            if (!present) releaseAll() // belt: no keyboard left, nothing may stay held
             onPresenceChanged(present)
         }
     }
