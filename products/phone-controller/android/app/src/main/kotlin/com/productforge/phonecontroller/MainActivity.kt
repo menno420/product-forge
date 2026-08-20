@@ -312,6 +312,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         Supporter.unlocked = prefs().getBoolean(PREF_SUPPORTER, false)
         turbo.setRateHz(prefs().getInt(PREF_TURBO_HZ, 10))
         currentSelection = prefs().getString(PREF_SELECTION, "b:0") ?: "b:0"
+        lastScreenBucket = screenBucket()
         lastStatus = getString(R.string.probing)
         buildUi()
         hardwareKeyboard.startWatching()
@@ -320,7 +321,40 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        maybeSwitchLayoutForScreen()
         buildUi()
+    }
+
+    // --- per-screen layout memory (Slice 22, foldables) --------------------------------
+
+    /**
+     * Screen-size bucket for layout memory: cover screen / phone vs unfolded
+     * inner display / tablet. smallestScreenWidthDp is rotation-invariant, so
+     * only a genuine display change (fold/unfold) can move buckets.
+     */
+    private fun screenBucket(): String =
+        if (resources.configuration.smallestScreenWidthDp >= 600) "swL" else "swS"
+
+    private var lastScreenBucket: String? = null
+
+    /**
+     * On a bucket flip (fold/unfold), restore that screen's remembered layout —
+     * compact pad on the cover screen, full pad inside, automatically. The
+     * remembered key is written by every showSelection, mirroring per-host
+     * memory; precedence is event-ordered (connect applies host memory, fold
+     * applies screen memory — last event wins). Never yanks an open editor.
+     */
+    private fun maybeSwitchLayoutForScreen() {
+        val bucket = screenBucket()
+        if (bucket == lastScreenBucket) return
+        lastScreenBucket = bucket
+        if (editingLayout != null) return
+        val remembered = prefs().getString("$PREF_SCREEN_LAYOUT_PREFIX$bucket", null)
+        if (remembered != null && remembered != currentSelection && selectionExists(remembered)) {
+            // buildUi() (the caller's next step) renders it through the full
+            // showSelection guard path.
+            currentSelection = remembered
+        }
     }
 
     override fun onDestroy() {
@@ -728,6 +762,10 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
 
         currentSelection = key
         prefs().edit().putString(PREF_SELECTION, key).apply()
+        // Per-screen memory (Slice 22): the pick belongs to THIS display size,
+        // so a foldable restores it when this screen returns. Device-geometry
+        // state, deliberately outside backup (same class as host_layout_).
+        prefs().edit().putString("$PREF_SCREEN_LAYOUT_PREFIX${screenBucket()}", key).apply()
         transport?.connectedHostAddress()?.let { addr ->
             prefs().edit().putString("$PREF_HOST_LAYOUT_PREFIX$addr", key).apply()
         }
@@ -3043,6 +3081,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         const val PREF_LAST_HOST = "last_host"
         const val PREF_DESC_PREFIX = "desc_"
         const val PREF_HOST_LAYOUT_PREFIX = "host_layout_"
+        const val PREF_SCREEN_LAYOUT_PREFIX = "screen_layout_"
         const val PREF_APP_BG = "app_bg"
         const val PREF_NDS_PEN = "nds_pen"
         const val PREF_SUPPORTER = "supporter_preview"

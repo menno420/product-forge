@@ -155,6 +155,12 @@ browser/files app when prompted (normal sideload flow — this app is not on a s
    longer restarts the controller screen (an undeclared keyboard config
    change used to recreate it, dropping the live connection).
 
+   **On a foldable**, folding or unfolding mid-game keeps the connection
+   alive (the display switch used to recreate the controller screen and drop
+   it), the pad re-lays for the new screen — and **each screen remembers its
+   own last layout**: pick a compact pad on the cover screen and a full pad
+   inside, and the app switches between them automatically as you fold.
+
    In Settings you can also map the **hardware volume buttons** to inputs
    (L1/R1, L2/R2, or PgUp/PgDn — real physical shoulder buttons in landscape;
    volume behaves normally when disconnected), set the **turbo rate** and the

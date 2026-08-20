@@ -8,6 +8,17 @@ Time: 2026-08-20 · lane: builder (phone-controller · slice 22) · owner direct
 2026-08-16 via continuation prompt — the same ask as Slice 21, second half:
 *"There should also be some extra support for foldable phones etc."*
 
+## Previous-session review
+
+Slice 21 shipped minutes ago, same session (pf #52 squash `e69afe5`,
+v0.21.0): release verified in full — APK + sha256 assets (`feaf1d73…`
+two-way), the "signing: stable repo keystore" line in run 32409734439, and
+the signer cert MEASURED identical v0.20.0 ↔ v0.21.0 (sha256 `7bda3340…`,
+v2 signing-block parse of both APKs). product-forge `main` = `e69afe5`;
+this branch starts there. The heartbeat future-stamp red that hit #52's
+`check` job (353 s ahead — heartbeat-guard rejects future stamps) is the
+one CI red this session caused; stamped real UTC since.
+
 💡 Session idea: designed BEFORE code on the Slice-21 card
 (`.sessions/2026-08-20-phone-controller-slice21-hardware-keyboard.md` § D5 —
 options, choice, reasons; this card executes that design). What is actually
