@@ -1,6 +1,6 @@
 # product-forge · status
 
-updated: 2026-08-20T19:40:00Z
+updated: 2026-08-20T19:35:08Z
 phase: phone-controller Slice 21 SHIPPED — physical-keyboard support (v0.21.0); Slice 22 (foldables) next
 lane: builder (phone-controller) · owner directive 2026-08-16 via continuation prompt
 health: green
