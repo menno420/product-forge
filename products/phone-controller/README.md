@@ -147,7 +147,9 @@ browser/files app when prompted (normal sideload flow — this app is not on a s
    (keys fire controller actions you bind under Settings → *Hardware
    keyboard…* — load the default set: WASD/arrows → D-pad, IJKL → face
    buttons, Q/E/Z/C → shoulders, Enter → START, Right-Shift → SELECT — or
-   press any key and pick any action, same vocabulary as pad buttons).
+   press any key and pick its action: gamepad / D-pad / keys / modifiers /
+   media / mouse buttons / key combos. Macros and gestures stay pad-button
+   features, deliberately — same exclusion set as voice commands).
    Long-press the ⌨ button for the bindings editor. Volume keys keep their
    own Settings mapping below; Back stays Back; hot-plugging a keyboard no
    longer restarts the controller screen (an undeclared keyboard config

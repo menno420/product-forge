@@ -1,6 +1,6 @@
 # Session — phone-controller Slice 21: physical-keyboard support (type-through + key bindings)
 
-> **Status:** `in-progress`
+> **Status:** `complete`
 
 📊 Model: fable-5 · high · feature build
 
@@ -224,4 +224,46 @@ emulator; confirm keyboard hot-plug mid-session no longer drops the connection.
 
 ## Result
 
-*(filled at close)*
+Shipped as PR #52 (v0.21.0, versionCode 19). Everything in § Scope landed:
+the unconditional Settings-close refresh, hid-core `KeyEventMap` (+9 tests),
+the `input/` package (bindings store + capture engine), the ⌨ toggle +
+Settings editor, backup carriage, the `keyboard` configChange, the README
+pass with the L3/R3 correction.
+
+**Codex: two rounds, six findings — [conceded] ×4 · [partial] ×1 ·
+[survived] ×1.** Round 1 (on `b326b00`, answered 19:17:50Z via the explicit
+`@codex review` trigger after PR-open stayed silent ~10 min — silence treated
+as non-evidence, the Slice-18 lesson): shared-action release collision
+(W and ↑ both → DPAD UP; either up released the shared state) and
+multi-keyboard detach leaving holds stuck — **both [conceded]**, root cause
+one and the same: per-keycode closures with no shared-state accounting.
+Fix: `HeldKeyLedger` in hid-core — (device, key)-keyed, reference-counted by
+action identity, per-device release — with 8 unit tests pinning both finding
+scenarios (hid-core 55 → 63). Round 2 (on `f83a67e`): stateless MEDIA
+actions were coalesced by that same identity (hold one NEXT-bound key,
+tap another → no second tap) — **[conceded]**, stateless actions now ride
+uncounted per-press entries; the startup presence race (listener registered
+after the first UI sample) — **[conceded]**, register-then-reconcile with the
+UI comparing against what it actually rendered; MACRO missing from the
+binding picker — **[partial]**: the exclusion is § D6's pre-review decision
+(same set + reasons as voice commands), but the README had promised "any
+action" — copy corrected to name the exact set, macro-bindings recorded as a
+Layer-2 candidate; cross-producer shared holds (on-screen Up releasing
+W-held DPAD UP) — **[survived]**: that is the app's standing
+last-writer-wins transport model, reachable today with two same-action
+on-screen buttons and no keyboard involved; a producer-wide ownership model
+(which would have to exempt turbo's deliberate same-bit pulsing) is its own
+design, recorded as a Layer-2 candidate, not smuggled into this slice.
+Round-2 fixes land in the flip commit, dispositioned under the two-round
+cap (kit #581 precedent), stated here rather than re-reviewed.
+
+Verification: Python 26/26 · JVM 76/76 (`:capability-core` 13,
+`:hid-core` 63) · compile-check OK 112 classes / 24 files (baseline 103/22)
+· gate red exactly on this card until this flip · CI green on the feature
+head (check · substrate-gate · capability-core · assemble-app). Release
+verification (tag `phone-controller-v0.21.0`, assets, stable-keystore line,
+signer-cert match vs v0.20.0) recorded at tag time below the merge.
+
+Device-venue honesty: capture semantics and the hot-plug recreation fix are
+REASONED from the platform contract + this repo's sources; the owner steps
+in § Verification plan are what proves them on hardware.

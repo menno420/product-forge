@@ -1,18 +1,27 @@
 # product-forge · status
 
-updated: 2026-08-20T09:35:00Z
-phase: phone-controller Slice 21 IN PROGRESS — physical-keyboard support (born-red)
+updated: 2026-08-20T19:40:00Z
+phase: phone-controller Slice 21 SHIPPED — physical-keyboard support (v0.21.0); Slice 22 (foldables) next
 lane: builder (phone-controller) · owner directive 2026-08-16 via continuation prompt
 health: green
 
 ## This session (2026-08-20, owner directive 2026-08-16 — keyboard + foldable)
-**Slice 21 in progress:** physical-keyboard support — recognize attached
-keyboards (InputManager), capture via dispatchKeyEvent with an explicit
-policy, TYPE mode (live keycode→HID type-through, hid-core KeyEventMap) and
-PAD mode (global key→action bindings through resolveRaw, VoiceStore pattern),
-plus the queued unconditional Settings-close refresh. Design recorded on the
-card BEFORE code (owner's "think about this"). Slice 22 (foldables:
-configChanges hardening + per-screen layout memory) follows as its own slice.
+**Slice 21 SHIPPED (PR #52):** physical-keyboard support — attached keyboards
+recognized (InputManager + alphabetic-external check), captured via
+dispatchKeyEvent under an explicit policy, TYPE mode (live keycode→HID
+type-through, hid-core KeyEventMap, both-side modifiers, media keys) and PAD
+mode (key→action bindings through resolveRaw, VoiceStore pattern), ⌨ toggle
+present exactly while a keyboard is attached, bindings+mode in backup, the
+`keyboard` configChange (hot-plug no longer drops the connection), plus the
+queued unconditional Settings-close refresh. Design recorded on the card
+BEFORE code (owner's "think about this"). Codex 2 rounds, 6 findings:
+[conceded]×4 (HeldKeyLedger ref-counted holds + per-device release +
+stateless-tap exemption + presence-race reconcile) · [partial]×1 (README
+overclaim fixed; macro-bindings = recorded candidate) · [survived]×1
+(cross-producer holds = the app's standing transport model; producer-wide
+ownership recorded as candidate). **Slice 22 (foldables: configChanges
+hardening + per-screen layout memory, designed on the same card § D5) is
+this session's next slice.**
 Card: `.sessions/2026-08-20-phone-controller-slice21-hardware-keyboard.md`.
 
 ## Earlier (2026-08-16, owner-live directive — third slice)

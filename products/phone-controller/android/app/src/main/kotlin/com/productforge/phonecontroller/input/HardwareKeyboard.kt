@@ -123,10 +123,18 @@ class HardwareKeyboard(
     /** Release every captured key (mode change, disconnect, pause, focus loss). */
     fun releaseAll() = ledger.releaseAll()
 
-    /** Start watching attach/detach; safe to call once from onCreate (main thread). */
+    /**
+     * Start watching attach/detach; call once from onCreate (main thread).
+     * Registration comes FIRST, then a notify-capable reconcile — a keyboard
+     * attached between the UI's first presence sample and this point would
+     * otherwise stay invisible until an unrelated device event (Codex round 2
+     * on pf #52). The reconcile always notifies once; the UI side compares
+     * against what it actually rendered.
+     */
     fun startWatching() {
-        lastPresence = keyboardPresent()
         inputManager?.registerInputDeviceListener(deviceListener, null)
+        lastPresence = null
+        presenceCheck()
     }
 
     fun stopWatching() {
@@ -144,10 +152,13 @@ class HardwareKeyboard(
     /**
      * (action identity, action) for a captured DOWN, or null for a swallowed
      * no-op. The identity is what the ledger reference-counts: keys sharing an
-     * underlying HID state share it (same usage, same modifier mask, same
+     * underlying HELD state share it (same usage, same modifier mask, same
      * bound action), so a sibling key's UP can never release a held input.
+     * STATELESS actions — media taps, which emit their whole effect on
+     * action(true) — carry a null identity instead: each press must fire, so
+     * they are tracked per key and never coalesced (Codex round 2 on pf #52).
      */
-    private fun actionForDown(keyCode: Int): Pair<String, (Boolean) -> Unit>? = when (mode) {
+    private fun actionForDown(keyCode: Int): Pair<String?, (Boolean) -> Unit>? = when (mode) {
         KeyMode.OFF -> null
         KeyMode.TYPE -> {
             val modifier = KeyEventMap.modifierMaskFor(keyCode)
@@ -156,12 +167,15 @@ class HardwareKeyboard(
             when {
                 modifier != null -> "m:$modifier" to { down: Boolean -> typeModifier(modifier, down) }
                 usage != null -> "k:$usage" to { down: Boolean -> typeKey(usage, down) }
-                media != null -> "media:${media.name}" to { down: Boolean -> if (down) mediaTap(media) }
+                media != null -> null to { down: Boolean -> if (down) mediaTap(media) }
                 else -> null // unmappable: swallowed silently (positions, not glyphs)
             }
         }
         KeyMode.PAD -> bindingMap()[keyCode]?.let { b ->
-            resolveBinding(b)?.let { action -> "a:${b.actionType}:${b.actionCode}" to action }
+            resolveBinding(b)?.let { action ->
+                val identity = if (b.actionType == STATELESS_TYPE) null else "a:${b.actionType}:${b.actionCode}"
+                identity to action
+            }
         }
     }
 
@@ -201,6 +215,9 @@ class HardwareKeyboard(
     companion object {
         /** The mode preference key — public so backup-everything can whitelist it. */
         const val PREF_MODE = "hw_key_mode"
+
+        /** The one stateless action type reachable from a binding (taps on down). */
+        private const val STATELESS_TYPE = "MEDIA"
 
         private val NOOP: (Boolean) -> Unit = { }
 

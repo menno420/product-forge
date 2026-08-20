@@ -165,8 +165,14 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             typeModifier = { mask, down -> transport?.modifier(mask, down) },
             mediaTap = { b -> transport?.sendMediaButton(b) },
             onPresenceChanged = { present ->
-                if (present) setDetail(getString(R.string.keyboard_detected_hint))
-                buildUi() // the ⌨ mode button exists exactly while a keyboard does
+                // The engine notifies on every flip AND once at startup (its
+                // register-then-reconcile close of the attach race — Codex
+                // round 2); rebuild only when the rendered chrome disagrees.
+                val rendered = keyModeToggleView != null
+                if (present != rendered) {
+                    if (present) setDetail(getString(R.string.keyboard_detected_hint))
+                    buildUi() // the ⌨ mode button exists exactly while a keyboard does
+                }
             },
         )
     }
