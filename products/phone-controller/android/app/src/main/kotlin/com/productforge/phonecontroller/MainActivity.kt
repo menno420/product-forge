@@ -313,6 +313,11 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         turbo.setRateHz(prefs().getInt(PREF_TURBO_HZ, 10))
         currentSelection = prefs().getString(PREF_SELECTION, "b:0") ?: "b:0"
         lastScreenBucket = screenBucket()
+        // A process can restart on a different screen than it died on (fold
+        // state is not process state): THIS screen's own memory outranks the
+        // global last selection — otherwise the first buildUi would overwrite
+        // this bucket with the other screen's layout (Codex round 1, pf #53).
+        applyScreenBucketSelection()
         lastStatus = getString(R.string.probing)
         buildUi()
         hardwareKeyboard.startWatching()
@@ -338,21 +343,42 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
     private var lastScreenBucket: String? = null
 
     /**
+     * A bucket flip that arrived while the editor was open: applied when the
+     * editor CLOSES. Without the deferral, cancelling the editor after a fold
+     * would restore the OLD screen's pre-edit selection and write it into the
+     * NEW screen's memory (Codex round 1, pf #53). Any explicit selection
+     * (Save, a spinner pick) consumes the pending flip instead — the user
+     * just chose a layout on this screen, and last event wins.
+     */
+    private var pendingScreenBucketSwitch = false
+
+    /**
      * On a bucket flip (fold/unfold), restore that screen's remembered layout —
      * compact pad on the cover screen, full pad inside, automatically. The
      * remembered key is written by every showSelection, mirroring per-host
      * memory; precedence is event-ordered (connect applies host memory, fold
-     * applies screen memory — last event wins). Never yanks an open editor.
+     * applies screen memory — last event wins). Never yanks an open editor:
+     * the flip goes pending instead.
      */
     private fun maybeSwitchLayoutForScreen() {
         val bucket = screenBucket()
         if (bucket == lastScreenBucket) return
         lastScreenBucket = bucket
-        if (editingLayout != null) return
-        val remembered = prefs().getString("$PREF_SCREEN_LAYOUT_PREFIX$bucket", null)
+        if (editingLayout != null) {
+            pendingScreenBucketSwitch = true
+            return
+        }
+        applyScreenBucketSelection()
+    }
+
+    /**
+     * Point currentSelection at the CURRENT bucket's remembered layout, when
+     * one exists and still resolves. The caller renders it (buildUi /
+     * showSelection) — this only retargets.
+     */
+    private fun applyScreenBucketSelection() {
+        val remembered = prefs().getString("$PREF_SCREEN_LAYOUT_PREFIX${screenBucket()}", null)
         if (remembered != null && remembered != currentSelection && selectionExists(remembered)) {
-            // buildUi() (the caller's next step) renders it through the full
-            // showSelection guard path.
             currentSelection = remembered
         }
     }
@@ -761,6 +787,9 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         editingView = null
 
         currentSelection = key
+        // An explicit selection on this screen consumes any bucket flip that
+        // arrived mid-edit — the user just chose, and last event wins.
+        pendingScreenBucketSwitch = false
         prefs().edit().putString(PREF_SELECTION, key).apply()
         // Per-screen memory (Slice 22): the pick belongs to THIS display size,
         // so a foldable restores it when this screen returns. Device-geometry
@@ -1451,7 +1480,17 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
     private fun discardEditor() {
         editingLayout = null
         editingView = null
-        val back = if (selectionExists(preEditSelection)) preEditSelection else "b:0"
+        // A fold arrived mid-edit: cancelling returns to THIS screen's own
+        // remembered layout — restoring preEditSelection here would write the
+        // OLD screen's layout into the new bucket (Codex round 1, pf #53).
+        val back = if (pendingScreenBucketSwitch) {
+            pendingScreenBucketSwitch = false
+            prefs().getString("$PREF_SCREEN_LAYOUT_PREFIX${screenBucket()}", null)
+                ?.takeIf { selectionExists(it) }
+                ?: if (selectionExists(preEditSelection)) preEditSelection else "b:0"
+        } else {
+            if (selectionExists(preEditSelection)) preEditSelection else "b:0"
+        }
         showSelection(back)
         rebuildSpinnerSelection()
     }
