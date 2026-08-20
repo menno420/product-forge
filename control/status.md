@@ -1,11 +1,30 @@
 # product-forge · status
 
-updated: 2026-08-16T07:36:28Z
-phase: phone-controller Slice 20 SHIPPED — PS2 pad in the layout spinner (v0.20.0)
-lane: builder (phone-controller) · owner-live session 2026-08-14 (hub-attached, Slice-4 precedent)
+updated: 2026-08-20T19:35:08Z
+phase: phone-controller Slice 21 SHIPPED — physical-keyboard support (v0.21.0); Slice 22 (foldables) next
+lane: builder (phone-controller) · owner directive 2026-08-16 via continuation prompt
 health: green
 
-## This session (2026-08-16, owner-live directive — third slice)
+## This session (2026-08-20, owner directive 2026-08-16 — keyboard + foldable)
+**Slice 21 SHIPPED (PR #52):** physical-keyboard support — attached keyboards
+recognized (InputManager + alphabetic-external check), captured via
+dispatchKeyEvent under an explicit policy, TYPE mode (live keycode→HID
+type-through, hid-core KeyEventMap, both-side modifiers, media keys) and PAD
+mode (key→action bindings through resolveRaw, VoiceStore pattern), ⌨ toggle
+present exactly while a keyboard is attached, bindings+mode in backup, the
+`keyboard` configChange (hot-plug no longer drops the connection), plus the
+queued unconditional Settings-close refresh. Design recorded on the card
+BEFORE code (owner's "think about this"). Codex 2 rounds, 6 findings:
+[conceded]×4 (HeldKeyLedger ref-counted holds + per-device release +
+stateless-tap exemption + presence-race reconcile) · [partial]×1 (README
+overclaim fixed; macro-bindings = recorded candidate) · [survived]×1
+(cross-producer holds = the app's standing transport model; producer-wide
+ownership recorded as candidate). **Slice 22 (foldables: configChanges
+hardening + per-screen layout memory, designed on the same card § D5) is
+this session's next slice.**
+Card: `.sessions/2026-08-20-phone-controller-slice21-hardware-keyboard.md`.
+
+## Earlier (2026-08-16, owner-live directive — third slice)
 **Slice 20 SHIPPED (PR #51):** owner screenshot: PS2 not visible in the layout
 spinner (Slice 19 made it a New-layout template only). Fix: "PS2 pad" as a
 directly selectable spinner row rendered from the template (key class `t:`),

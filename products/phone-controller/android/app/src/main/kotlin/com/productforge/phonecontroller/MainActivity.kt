@@ -29,6 +29,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.drawable.GradientDrawable
+import android.hardware.input.InputManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -55,6 +56,9 @@ import com.productforge.phonecontroller.capability.Verdict
 import com.productforge.phonecontroller.hid.DpadDirection
 import com.productforge.phonecontroller.hid.GamepadButton
 import com.productforge.phonecontroller.hid.KeyUsage
+import com.productforge.phonecontroller.input.HardwareKeyboard
+import com.productforge.phonecontroller.input.KeyBinding
+import com.productforge.phonecontroller.input.KeyBindingStore
 import com.productforge.phonecontroller.hid.MediaButton
 import com.productforge.phonecontroller.hid.MouseButton
 import com.productforge.phonecontroller.layout.BackupCodec
@@ -143,6 +147,35 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
 
     private val gestureStore by lazy { GestureStore(prefs()) }
     private val voiceStore by lazy { VoiceStore(prefs()) }
+    private val keyBindingStore by lazy { KeyBindingStore(prefs()) }
+
+    /**
+     * Physical-keyboard engine (Slice 21): presence detection + the
+     * dispatchKeyEvent capture policy + TYPE/PAD mode plumbing. Capture is
+     * gated on connected-and-not-editing; dialogs self-exempt (own windows).
+     */
+    private val hardwareKeyboard by lazy {
+        HardwareKeyboard(
+            inputManager = getSystemService(Context.INPUT_SERVICE) as? InputManager,
+            bindings = keyBindingStore,
+            prefs = prefs(),
+            captureAllowed = { transport?.isConnected == true && editingLayout == null },
+            resolveBinding = { b -> resolveRaw(b.actionType, b.actionCode) },
+            typeKey = { usage, down -> transport?.key(usage, down) },
+            typeModifier = { mask, down -> transport?.modifier(mask, down) },
+            mediaTap = { b -> transport?.sendMediaButton(b) },
+            onPresenceChanged = { present ->
+                // The engine notifies on every flip AND once at startup (its
+                // register-then-reconcile close of the attach race — Codex
+                // round 2); rebuild only when the rendered chrome disagrees.
+                val rendered = keyModeToggleView != null
+                if (present != rendered) {
+                    if (present) setDetail(getString(R.string.keyboard_detected_hint))
+                    buildUi() // the ⌨ mode button exists exactly while a keyboard does
+                }
+            },
+        )
+    }
     private val voiceDriver by lazy {
         VoiceDriver(this, { voiceStore.all() }) { command -> fireVoiceCommand(command) }
     }
@@ -172,6 +205,8 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
     override fun onPause() {
         // Foreground-only listening: the mic is never live while the app isn't.
         voiceDriver.stop()
+        // Backgrounding mid-hold: key UPs will never arrive here — release now.
+        hardwareKeyboard.releaseAll()
         super.onPause()
     }
 
@@ -279,6 +314,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         currentSelection = prefs().getString(PREF_SELECTION, "b:0") ?: "b:0"
         lastStatus = getString(R.string.probing)
         buildUi()
+        hardwareKeyboard.startWatching()
         ensurePermissionsThenStart()
     }
 
@@ -288,6 +324,8 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
     }
 
     override fun onDestroy() {
+        hardwareKeyboard.stopWatching()
+        hardwareKeyboard.releaseAll()
         voiceDriver.stop()
         textTyper.cancel()
         macroRunner.cancel()
@@ -296,6 +334,30 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         transport?.stop()
         transport = null
         super.onDestroy()
+    }
+
+    /**
+     * A dialog opening mid-hold moves subsequent key events (including the UP)
+     * into the dialog's own window — release everything the keyboard engine
+     * holds the moment this window loses focus, so no key can stay stuck.
+     */
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (!hasFocus) hardwareKeyboard.releaseAll()
+    }
+
+    // --- physical keyboard capture (Slice 21) ------------------------------------------
+
+    /**
+     * Runs BEFORE the view tree for every key event in this window, so captured
+     * keys can never focus-wander or "click" a focused pad button (the reason
+     * the volume-key seam below cannot carry this feature — Activity.onKeyDown
+     * sees only keys the focused View declined). Volume keys are in the
+     * engine's never-capture set and fall through to that seam unchanged.
+     */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (hardwareKeyboard.handle(event)) return true
+        return super.dispatchKeyEvent(event)
     }
 
     // --- hardware volume keys as inputs (Slice 10) ------------------------------------
@@ -509,6 +571,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                 macroRunner.cancel()
                 turbo.cancelAll()
                 stopGyro()
+                hardwareKeyboard.releaseAll()
                 setStatus(getString(R.string.disconnected_hint))
             }
         }
@@ -917,6 +980,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
         PREF_HAPTICS, PREF_DEADZONE, PREF_TURBO_HZ, PREF_ALT_MS, PREF_SCROLL_INVERT,
         PREF_VOLKEYS, PREF_VOICE, PREF_GYRO_TARGET, PREF_GYRO_SENS, PREF_GYRO_INV_X,
         PREF_GYRO_INV_Y, PREF_APP_BG, PREF_SENSITIVITY, PREF_NDS_PEN,
+        HardwareKeyboard.PREF_MODE,
     )
 
     /** Snapshot the whitelisted settings as typed entries (Float rides as Double for JSON). */
@@ -977,6 +1041,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             gesturesRaw = prefs().getString(GestureStore.KEY, null),
             voiceRaw = prefs().getString(VoiceStore.KEY, null),
             settings = settingsSnapshot(),
+            keysRaw = keyBindingStore.raw(),
         )
         (getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager)
             ?.setPrimaryClip(ClipData.newPlainText("phone-controller backup", blob))
@@ -1020,12 +1085,14 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                 // store blobs are replaced (empty is explicit in the format), and
                 // whitelisted settings not carried reset to defaults.
                 layoutStore.replaceAll(backup.layouts)
-                // Store blobs ride opaquely; both stores are fail-soft on read, so a
+                // Store blobs ride opaquely; the stores are fail-soft on read, so a
                 // malformed blob degrades to an empty store, never a crash.
                 prefs().edit()
                     .putString(GestureStore.KEY, backup.gesturesRaw ?: "[]")
                     .putString(VoiceStore.KEY, backup.voiceRaw ?: "[]")
                     .apply()
+                keyBindingStore.restoreRaw(backup.keysRaw ?: "[]")
+                hardwareKeyboard.invalidateBindings()
                 val applied = applyRestoredSettings(backup.settings)
                 // Re-read everything the restored settings drive.
                 Haptics.enabled = prefs().getBoolean(PREF_HAPTICS, true)
@@ -1038,8 +1105,9 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
                 // instead of silently doing nothing on a new phone.
                 voiceDriver.stop()
                 startVoiceIfEnabled()
-                rebuildSpinnerSelection()
-                showSelection(currentSelection)
+                // Full chrome rebuild: the spinner AND the ⌨ mode toggle label
+                // (the restored settings may carry a different keyboard mode).
+                buildUi()
                 if (voiceEnabled() && !hasMicPermission()) {
                     setDetail(getString(R.string.restore_voice_needs_mic))
                 } else {
@@ -2174,6 +2242,19 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
 
         content.addView(
             Button(this).apply {
+                text = getString(R.string.settings_hw_keyboard)
+                isAllCaps = false
+                textSize = 13f
+                ButtonStyler.flatStyle(this, ButtonStyler.SURFACE, cornerDp = 18f)
+                setOnClickListener { keyboardSettingsDialog() }
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+            ),
+        )
+
+        content.addView(
+            Button(this).apply {
                 text = getString(R.string.gestures_title)
                 isAllCaps = false
                 textSize = 13f
@@ -2242,17 +2323,190 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             .setView(ScrollView(this).apply { addView(content) })
             .setPositiveButton(R.string.layouts_title) { _, _ -> openLayoutManager() }
             .setNegativeButton(android.R.string.ok) { _, _ ->
-                // Deadzone + long-press hold time apply on pad rebuild. Custom AND
-                // template pads capture both at construction, so refresh them too —
-                // not only the built-in analog pad (Codex, PR #49 for c:, PR #51 for
-                // t: — the same staleness class recurred for the new key class).
-                if (currentSelection == "b:${Pad.ANALOG.ordinal}" ||
-                    currentSelection.startsWith("c:") || currentSelection.startsWith("t:")
-                ) {
-                    showSelection(currentSelection)
-                }
+                // UNCONDITIONAL refresh (the Layer-2 queued item): pads capture
+                // Settings values at construction, and the per-key-class
+                // enumeration that stood here under-covered twice — Codex on
+                // PR #49 (missed c:) and PR #51 (missed t:). Rebuilding is
+                // idempotent and no input is ever held while a dialog is up.
+                // The one guard: never clobber an open editor (the enumeration
+                // could, whenever the pre-edit selection matched it).
+                if (editingLayout == null) showSelection(currentSelection)
             }
             .show()
+    }
+
+    // --- physical keyboard (Slice 21) ---------------------------------------------------
+
+    private fun keyModeLabel(): String = when (hardwareKeyboard.mode) {
+        HardwareKeyboard.KeyMode.OFF -> getString(R.string.keymode_off)
+        HardwareKeyboard.KeyMode.TYPE -> getString(R.string.keymode_type)
+        HardwareKeyboard.KeyMode.PAD -> getString(R.string.keymode_pad)
+    }
+
+    private fun keyModeHint(): String = when (hardwareKeyboard.mode) {
+        HardwareKeyboard.KeyMode.OFF -> getString(R.string.keymode_hint_off)
+        HardwareKeyboard.KeyMode.TYPE -> getString(R.string.keymode_hint_type)
+        HardwareKeyboard.KeyMode.PAD -> getString(R.string.keymode_hint_pad)
+    }
+
+    /** The live ⌨ toggle, so a mode change made in Settings refreshes its label. */
+    private var keyModeToggleView: Button? = null
+
+    /**
+     * Compact ⌨ mode toggle beside the layout spinner (portrait) / in the side
+     * panel (landscape) — present exactly while a hardware keyboard is attached
+     * (the Slice-20 lesson: a control you cannot see does not exist). Tap cycles
+     * Off → Type → Pad; long-press opens the full editor.
+     */
+    private fun keyModeToggle(): Button = Button(this).apply {
+        keyModeToggleView = this
+        text = keyModeLabel()
+        isAllCaps = false
+        textSize = 13f
+        ButtonStyler.flatStyle(this, ButtonStyler.SURFACE, cornerDp = 18f)
+        setOnClickListener {
+            hardwareKeyboard.cycleMode()
+            text = keyModeLabel()
+            setDetail(keyModeHint())
+        }
+        setOnLongClickListener {
+            keyboardSettingsDialog()
+            true
+        }
+    }
+
+    /**
+     * Hardware keyboard settings (Slice 21): presence line, mode, the key→action
+     * binding table (PAD mode), Add / Load-defaults. Reachable from Settings
+     * always, and by long-pressing the ⌨ toggle.
+     */
+    private fun keyboardSettingsDialog() {
+        val pad = dp(16)
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, 0)
+        }
+        content.addView(
+            TextView(this).apply {
+                text = getString(
+                    if (hardwareKeyboard.keyboardPresent()) R.string.keybind_present else R.string.keybind_absent,
+                )
+                textSize = 13f
+            },
+        )
+        content.addView(
+            Button(this).apply {
+                fun label() = getString(R.string.keymode_current_fmt, keyModeLabel())
+                text = label()
+                isAllCaps = false
+                textSize = 13f
+                ButtonStyler.flatStyle(this, ButtonStyler.SURFACE, cornerDp = 18f)
+                setOnClickListener {
+                    hardwareKeyboard.cycleMode()
+                    text = label()
+                    keyModeToggleView?.text = keyModeLabel() // keep the spinner-row chip live
+                    setDetail(keyModeHint())
+                }
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(8) },
+        )
+        content.addView(
+            TextView(this).apply {
+                text = getString(R.string.keybind_hint)
+                textSize = 12f
+                setTextColor(0xFF9AA7B0.toInt())
+                setPadding(0, dp(8), 0, dp(4))
+            },
+        )
+        val bindings = keyBindingStore.all().sortedBy { it.keyLabel }
+        bindings.forEach { binding ->
+            content.addView(
+                Button(this).apply {
+                    text = getString(R.string.keybind_row_fmt, binding.keyLabel, binding.actionLabel)
+                    isAllCaps = false
+                    textSize = 13f
+                    ButtonStyler.flatStyle(this, ButtonStyler.SURFACE)
+                    setOnClickListener { keyBindingOptions(binding) }
+                },
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.keybind_title)
+            .setView(ScrollView(this).apply { addView(content) })
+            .setPositiveButton(R.string.keybind_add) { _, _ ->
+                captureKeyDialog { keyCode, keyLabel ->
+                    pickStepAction { type, code, label ->
+                        keyBindingStore.put(KeyBinding(keyCode, keyLabel, type, code, label))
+                        hardwareKeyboard.invalidateBindings()
+                        setDetail(getString(R.string.keybind_bound_fmt, keyLabel, label))
+                        keyboardSettingsDialog()
+                    }
+                }
+            }
+            .setNeutralButton(R.string.keybind_defaults) { _, _ ->
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.keybind_defaults)
+                    .setMessage(R.string.keybind_defaults_confirm)
+                    .setPositiveButton(android.R.string.ok) { _, _ ->
+                        keyBindingStore.replaceAll(KeyBindingStore.defaults())
+                        hardwareKeyboard.invalidateBindings()
+                        keyboardSettingsDialog()
+                    }
+                    .setNegativeButton(android.R.string.cancel) { _, _ -> keyboardSettingsDialog() }
+                    .show()
+            }
+            .setNegativeButton(android.R.string.ok, null)
+            .show()
+    }
+
+    /** Per-binding row menu: change the action, or remove the binding. */
+    private fun keyBindingOptions(binding: KeyBinding) {
+        val entries = listOf<Pair<String, () -> Unit>>(
+            getString(R.string.keybind_change) to {
+                pickStepAction { type, code, label ->
+                    keyBindingStore.put(KeyBinding(binding.keyCode, binding.keyLabel, type, code, label))
+                    hardwareKeyboard.invalidateBindings()
+                    keyboardSettingsDialog()
+                }
+            },
+            getString(R.string.keybind_remove) to {
+                keyBindingStore.remove(binding.keyCode)
+                hardwareKeyboard.invalidateBindings()
+                keyboardSettingsDialog()
+            },
+        )
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.keybind_row_fmt, binding.keyLabel, binding.actionLabel))
+            .setItems(entries.map { it.first }.toTypedArray()) { _, which -> entries[which].second() }
+            .show()
+    }
+
+    /**
+     * "Press a key…" — captures the next hardware-keyboard key via the dialog's
+     * own key listener (the dialog owns its window, so the main capture engine
+     * never sees this press). Back cancels; ineligible keys fall through.
+     */
+    private fun captureKeyDialog(onCaptured: (Int, String) -> Unit) {
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.keybind_press_key)
+            .setMessage(R.string.keybind_press_key_hint)
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+        dialog.setOnKeyListener { d, keyCode, event ->
+            if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount > 0) {
+                return@setOnKeyListener false
+            }
+            if (!hardwareKeyboard.bindable(event)) return@setOnKeyListener false
+            d.dismiss()
+            onCaptured(keyCode, hardwareKeyboard.keyLabel(keyCode))
+            true
+        }
+        dialog.show()
     }
 
     /**
@@ -2606,6 +2860,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
 
     private fun buildUi() {
         chromeViews.clear()
+        keyModeToggleView = null // re-created below iff a keyboard is attached
         statusView = TextView(this).apply {
             textSize = 14f
             setTextColor(0xFFECEFF1.toInt())
@@ -2726,6 +2981,14 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             setPadding(dp(12), 0, dp(12), 0)
             addView(TextView(this@MainActivity).apply { text = getString(R.string.layout_label); textSize = 13f })
             addView(layoutSpinner(), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            if (hardwareKeyboard.keyboardPresent()) {
+                addView(
+                    keyModeToggle(),
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+                    ),
+                )
+            }
         }
         chromeViews += listOf<View>(statusView, detailView, row1, row2, spinnerRow)
         return LinearLayout(this).apply {
@@ -2745,6 +3008,7 @@ class MainActivity : Activity(), HidTransportListener, PadHost {
             addView(statusView)
             addView(detailView)
             addView(layoutSpinner())
+            if (hardwareKeyboard.keyboardPresent()) addView(keyModeToggle())
             actionButtons().forEach { addView(it) }
         }
         val panel = ScrollView(this).apply {

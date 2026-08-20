@@ -483,6 +483,8 @@ data class Backup(
     val gesturesRaw: String?,
     val voiceRaw: String?,
     val settings: List<BackupSetting>,
+    /** Key-binding store blob (Slice 21) — null in pre-Slice-21 backups. */
+    val keysRaw: String? = null,
 )
 
 /**
@@ -501,6 +503,7 @@ object BackupCodec {
         gesturesRaw: String?,
         voiceRaw: String?,
         settings: List<BackupSetting>,
+        keysRaw: String? = null,
     ): String {
         val o = JSONObject().put("pcb", VERSION)
         o.put("layouts", JSONArray().also { arr -> layouts.forEach { arr.put(it.toJson()) } })
@@ -509,6 +512,11 @@ object BackupCodec {
         // and leave the target's own (Codex, PR #49: restore is replace, not merge).
         o.put("gestures", gesturesRaw ?: "[]")
         o.put("voice", voiceRaw ?: "[]")
+        // Key bindings (Slice 21) ride as an ADDITIVE key inside the v1 envelope:
+        // a pre-Slice-21 build restoring this blob ignores the key and restores
+        // everything else, where a version bump would make it reject the whole
+        // blob (decide-and-flag on the Slice-21 card).
+        o.put("keys", keysRaw ?: "[]")
         o.put(
             "settings",
             JSONArray().also { arr ->
@@ -551,6 +559,7 @@ object BackupCodec {
             gesturesRaw = if (o.has("gestures")) o.getString("gestures") else null,
             voiceRaw = if (o.has("voice")) o.getString("voice") else null,
             settings = settings,
+            keysRaw = if (o.has("keys")) o.getString("keys") else null,
         )
     }.getOrNull()
 }
