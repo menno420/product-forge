@@ -1,11 +1,21 @@
 # product-forge · status
 
-updated: 2026-08-16T07:36:28Z
-phase: phone-controller Slice 20 SHIPPED — PS2 pad in the layout spinner (v0.20.0)
-lane: builder (phone-controller) · owner-live session 2026-08-14 (hub-attached, Slice-4 precedent)
+updated: 2026-08-20T09:35:00Z
+phase: phone-controller Slice 21 IN PROGRESS — physical-keyboard support (born-red)
+lane: builder (phone-controller) · owner directive 2026-08-16 via continuation prompt
 health: green
 
-## This session (2026-08-16, owner-live directive — third slice)
+## This session (2026-08-20, owner directive 2026-08-16 — keyboard + foldable)
+**Slice 21 in progress:** physical-keyboard support — recognize attached
+keyboards (InputManager), capture via dispatchKeyEvent with an explicit
+policy, TYPE mode (live keycode→HID type-through, hid-core KeyEventMap) and
+PAD mode (global key→action bindings through resolveRaw, VoiceStore pattern),
+plus the queued unconditional Settings-close refresh. Design recorded on the
+card BEFORE code (owner's "think about this"). Slice 22 (foldables:
+configChanges hardening + per-screen layout memory) follows as its own slice.
+Card: `.sessions/2026-08-20-phone-controller-slice21-hardware-keyboard.md`.
+
+## Earlier (2026-08-16, owner-live directive — third slice)
 **Slice 20 SHIPPED (PR #51):** owner screenshot: PS2 not visible in the layout
 spinner (Slice 19 made it a New-layout template only). Fix: "PS2 pad" as a
 directly selectable spinner row rendered from the template (key class `t:`),
