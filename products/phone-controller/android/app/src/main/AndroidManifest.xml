@@ -45,11 +45,14 @@
              activity. configChanges: rotation must NOT recreate the activity — a
              recreate tears down the HID registration and drops the live host
              connection mid-game; onConfigurationChanged rebuilds the layout by hand
-             (portrait = stacked chrome, landscape = side panel + full-height pad). -->
+             (portrait = stacked chrome, landscape = side panel + full-height pad).
+             `keyboard` (Slice 21): plugging/unplugging a hardware keyboard is a
+             keyboard-type config change — undeclared it would RECREATE and drop
+             the connection exactly like an undeclared rotation. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden">
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

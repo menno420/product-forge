@@ -18,14 +18,16 @@ target. Based on the Ideas-Lab plan
 
 ## State
 
-**beta · field-verified against a real host.** Slices 1–20 are built and CI-proven: the
+**beta · field-verified against a real host.** Slices 1–21 are built and CI-proven: the
 capability verdict engine (portable Python + lockstep Kotlin port), the real
 `BluetoothHidDevice` transport, a **combo HID device** (keyboard + gamepad + mouse +
 media remote), the controller UI (eleven ready-to-play layouts — the PS2 pad
 among them — plus a full custom-layout
 editor, slide-over game pads, analog sticks + gyro, per-widget behavior config,
 long-press alternate actions, dark controller theme, focus
-mode, landscape mode, rotation-safe connection, backup/restore-everything), and a
+mode, landscape mode, rotation-safe connection, backup/restore-everything,
+**physical-keyboard support** — an attached keyboard types live on the host or
+drives bound controller actions), and a
 release pipeline that publishes a signed, installable APK. Owner playtest 2026-07-23 (v0.4.0, laptop
 host): pairing ✓, keyboard input ✓, GBA emulator driven via keys ✓, gamepad reports
 confirmed live on a HID gamepad tester ✓ (emulator-side controller *binding* is
@@ -136,6 +138,21 @@ browser/files app when prompted (normal sideload flow — this app is not on a s
    switcher: picking another paired device hops the connection (and its remembered
    layout) over cleanly.
 
+   **Attach a real keyboard** (USB-C or Bluetooth, phone or tablet) and a **⌨
+   button appears beside the layout spinner** with three modes: **Off** (keys
+   behave normally), **Type** (every keystroke — letters, chords like
+   Ctrl+C, F-keys, arrows, even the keyboard's media keys — lands live on the
+   host: write on a TV or drive keyboard-bound emulators with real keys;
+   positions, not glyphs, so the host applies its own layout), and **Pad**
+   (keys fire controller actions you bind under Settings → *Hardware
+   keyboard…* — load the default set: WASD/arrows → D-pad, IJKL → face
+   buttons, Q/E/Z/C → shoulders, Enter → START, Right-Shift → SELECT — or
+   press any key and pick any action, same vocabulary as pad buttons).
+   Long-press the ⌨ button for the bindings editor. Volume keys keep their
+   own Settings mapping below; Back stays Back; hot-plugging a keyboard no
+   longer restarts the controller screen (an undeclared keyboard config
+   change used to recreate it, dropping the live connection).
+
    In Settings you can also map the **hardware volume buttons** to inputs
    (L1/R1, L2/R2, or PgUp/PgDn — real physical shoulder buttons in landscape;
    volume behaves normally when disconnected), set the **turbo rate** and the
@@ -239,11 +256,20 @@ fine size sliders (S17) → **deeper customization** (S18): per-widget behavior
 (stick deadzone/invert-Y, D-pad 4/8-way, touchpad speed/pen), long-press
 alternate actions, fine position sliders, backup/restore-everything →
 **PS2 (DualShock) preset** (S19): glyph-colored diamond, dual sticks, four
-digital shoulders — no HID descriptor change (L3/R3 stick-clicks deliberately
-deferred: they would need a descriptor revision, which forces a re-pair).
+digital shoulders — no HID descriptor change (L3/R3 stick-clicks deferred as
+scope; the descriptor already declares 16 button bits with the enum stopping
+at 11, so adding them later is enum-only — **no descriptor revision, no
+re-pair**; this line originally claimed the opposite and was corrected after
+the fm #864 Codex round) → **PS2 pad in the layout spinner** (S20, owner
+screenshot feedback): directly selectable, rendered from the template →
+**physical-keyboard support** (S21): attached-keyboard detection, live
+type-through (keycode → HID usage incl. both-side modifiers + media keys),
+key → action bindings through the shared action vocabulary, ⌨ mode toggle +
+bindings editor, keyboard hot-plug no longer drops the connection.
 Remaining candidates:
 
 - BLE-HOGP fallback transport for `BLE_HOGP_FALLBACK`-verdict devices.
+- L3/R3 stick-click buttons (enum-only, near-zero cost) if asked for.
 
 `iOS-as-controller` is deferred (network companion-receiver only); background
 hardware-button capture is blocked by platform policy. See the idea doc for sources and

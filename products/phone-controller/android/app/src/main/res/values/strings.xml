@@ -286,6 +286,33 @@
     <string name="restore_done_fmt">Restored %1$d layouts, gestures, voice commands and %2$d settings.</string>
     <string name="restore_voice_needs_mic">Restored — but voice commands need the microphone permission on this phone: Settings → Voice commands… to grant and enable.</string>
 
+    <!-- Physical keyboard (Slice 21) -->
+    <string name="settings_hw_keyboard">Hardware keyboard…</string>
+    <string name="keyboard_detected_hint">Keyboard detected — the ⌨ button by the layout spinner picks what it does (long-press it for bindings).</string>
+    <string name="keymode_off">⌨ Off</string>
+    <string name="keymode_type">⌨ Type</string>
+    <string name="keymode_pad">⌨ Pad</string>
+    <!-- %1$s = current mode label. -->
+    <string name="keymode_current_fmt">Mode: %1$s (tap to change)</string>
+    <string name="keymode_hint_off">Keyboard off: keys behave normally.</string>
+    <string name="keymode_hint_type">Type mode: every keystroke lands on the host — write with the real keyboard.</string>
+    <string name="keymode_hint_pad">Pad mode: bound keys fire controller actions (Hardware keyboard… sets bindings).</string>
+    <string name="keybind_title">Hardware keyboard</string>
+    <string name="keybind_present">A hardware keyboard is attached.</string>
+    <string name="keybind_absent">No hardware keyboard attached right now — settings still apply when one is.</string>
+    <string name="keybind_hint">Type mode sends every key to the host as real keystrokes (positions — the host applies its own layout). Pad mode fires the bindings below instead; unbound keys do nothing. Volume keys keep their own Settings mapping; Back stays Back.</string>
+    <!-- %1$s = key label, %2$s = action label. -->
+    <string name="keybind_row_fmt">%1$s → %2$s</string>
+    <string name="keybind_add">Add binding…</string>
+    <string name="keybind_change">Change action…</string>
+    <string name="keybind_remove">Remove binding</string>
+    <string name="keybind_defaults">Load defaults</string>
+    <string name="keybind_defaults_confirm">Replace ALL current bindings with the default set (WASD + arrows → D-pad, IJKL → face buttons, Q/E/Z/C → shoulders, Enter → START, Right-Shift → SELECT)?</string>
+    <string name="keybind_press_key">Press a key…</string>
+    <string name="keybind_press_key_hint">Press the keyboard key to bind (volume and system keys can’t be bound; Back cancels).</string>
+    <!-- %1$s = key label, %2$s = action label. -->
+    <string name="keybind_bound_fmt">Bound %1$s → %2$s.</string>
+
     <!-- About & Support (the fairness promise) -->
     <string name="about_title">About &amp; Support…</string>
     <string name="fairness_promise">Phone Controller is complete for free: every key, every pad, the full editor. No ads. No subscriptions. Ever.\n\nA one-time supporter pack (≈€1, cosmetic button styles only) will exist once the app reaches the Play Store — until then, preview the styles below for free.</string>
